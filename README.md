@@ -1,2 +1,2 @@
-# ePDF_LNNano
-Data processing and software for electron pair distribution function data processing 
+# PhD
+This repository basically is most of the programming code I developed during my PhD
