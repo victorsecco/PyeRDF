@@ -180,7 +180,7 @@ class ImageAnalysis:
         if circles is not None:
             circles = np.round(circles[0, :]).astype("int")
             center_x, center_y, r = circles[0]
-            return center_x, center_y, r
+            return center_x, center_y, r, final_im, blur, edges
         else:
             return final_im, blur, edges
         

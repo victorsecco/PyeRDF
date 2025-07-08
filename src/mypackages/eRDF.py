@@ -35,21 +35,20 @@ class DataProcessor:
         self.Elements = Elements
 
         # Load and process data in the constructor
-        self.x, self.iq, self.q, self.s, self.s2 = self.load_and_process_data(data, q0)
+        self.x, self.iq, self.q, self.s, self.s2 = self.load_and_process_data(data)
         self.lobato_factors = self.Lobato_Factors()
         self.fq_sq, self.gq, self.fqfit, self.iqfit = self.fq_gq()
         self.N, self.C, self.autofit = self.N_and_parameters(region=self.region)
 
-    def load_and_process_data(self, data_column, q0):
-        # Modify this method to process a single column of data
-        # 'data_column' is a pandas Series representing one column of your data
+    def load_and_process_data(self, data_column):
         Iq = np.array(data_column)
-        x = np.arange(0, len(Iq), 1)
-        x, iq = x[self.start:self.end], Iq[self.start:self.end]
-        q = x * self.ds * 2 * math.pi + q0
+        x = np.arange(self.start, self.end)
+        iq = Iq[self.start:self.end]
+        q = x * self.ds * 2 * math.pi  # q0 no longer needed
         s = q / (2 * math.pi)
         s2 = s ** 2
         return x, iq, q, s, s2
+
 
     def Lobato_Factors(self):
         FACTORS = []
@@ -236,7 +235,7 @@ class DataProcessor:
         iq = iq + self.autofit
         return iq
 
-    def plot_results(self, fq, fq2, r, Gr0):
+    def plot_results(self, fq, r, Gr0):
         plt.ion()  # interactive mode ON
         plt.close('all')  # close any previous figures
 
