@@ -80,10 +80,11 @@ class DataProcessor:
         fq_list = []
         gq_list = []
 
-        for idx, element in enumerate(self.Elements):
-            weight = self.Elements[element][2]
-            fq_list.append(self.lobato_factors[idx] * weight)
-            gq_list.append((self.lobato_factors[idx] ** 2) * weight)
+        for i in range(len(self.lobato_factors)):
+            if self.Elements.get(i + 1):
+                weight = self.Elements[i + 1][2]
+                fq_list.append(self.lobato_factors[i] * weight)
+                gq_list.append((self.lobato_factors[i] ** 2) * weight)
 
         fq_array = np.array(fq_list)
         gq_array = np.array(gq_list)
@@ -301,21 +302,6 @@ def Gr(q, fq, rmax, dr):
         Gr = np.array(Gr, dtype=np.float64)
 
         return r, Gr/(2 * np.pi)
-
-def calc_Gr_Lorch(q, fq, rmax, dr, a, b):
-    
-    Gr = []
-    r = np.arange(0, rmax, dr)
-
-    for i, r_step in enumerate(r):
-        delta = (math.pi/q.max()) * (1-np.exp(-abs(r_step-a)/b))
-        lorch = np.sin(q * delta)/(q * delta)
-        integrand = 8 * lorch * math.pi * fq * np.sin(q * r_step)
-        Gr.append(np.trapz(integrand, q/(2* np.pi)))
-    r = np.array(r, dtype=np.float64)
-    Gr = np.array(Gr, dtype=np.float64)
-
-    return r, Gr/(2 * np.pi)
 
 def q_to_two_theta(q_calibration, pixel_data, wavelength_nm):
     """

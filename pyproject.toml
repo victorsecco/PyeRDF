@@ -1,0 +1,11 @@
+[project]
+name = "data_processing"
+version = "0.1.0"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["packages"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
