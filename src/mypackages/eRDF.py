@@ -136,17 +136,27 @@ class DataProcessor:
 
         return r, Gr/(2 * np.pi)
 
-    def Gr_Lorch(self, fq, rmax, dr, a, b):
-        Gr = np.zeros_like(self.q)
-        #r = np.linspace(dr, rmax, self.end-self.start)
-        r = np.arange(dr, dr*(self.end-self.start)+dr, dr)
+    def Gr_Lorch(self, fq, rmax, dr):
+        """
+        Implements the Lorch correction as originally defined in Lorch (1969).
+        """
+        r = np.arange(0, rmax, dr)
+        Gr = np.zeros_like(r)
+
+        # Delta = 2π / Q_max
+        delta = 2 * np.pi / self.q.max()
+
+        # Lorch window: sinc(Q * delta / 2)
+        lorch = np.sinc((self.q * delta) / (2 * np.pi))  # sinc(x) = sin(πx)/(πx)
+
+        fq_mod = fq * lorch  # Apply Lorch window to F(Q)
+
         for i, r_step in enumerate(r):
-            delta = (math.pi/self.q.max()) * (1-np.exp(-abs(r_step-a)/b))
-            lorch = np.sin(self.q * delta)/(self.q * delta)
-            integrand = 8 * lorch * math.pi * fq * np.sin(self.q * r_step)
-            Gr[i] = np.trapz(integrand, self.s)
+            integrand = 8 * np.pi * fq_mod * np.sin(self.q * r_step)
+            Gr[i] = np.trapz(integrand, self.q / (2 * np.pi))  # Integration over q in Å⁻¹
 
         return r, Gr
+
 
     def Gr_Lorch_arctan(self, fq, rmax, dr, a, b, c):
         Gr = np.zeros_like(self.q)
@@ -243,22 +253,22 @@ class DataProcessor:
         # I(Q) vs Fit
         ax[0].plot(self.q, self.autofit, label="Fit")
         ax[0].plot(self.q, self.iq, label="I(Q)")
-        ax[0].set_xlabel("Q ($\AA^{-1}$)")
+        ax[0].set_xlabel(r"Q ($\AA^{-1}$)")
         ax[0].set_ylabel("Intensity")
         ax[0].legend()
         ax[0].set_title("Fitting I(Q)")
 
         # F(Q)
-        ax[1].plot(self.q, fq, label="$\phi(Q)$")
-        ax[1].set_xlabel("Q ($\AA^{-1}$)")
-        ax[1].set_ylabel("$\phi(Q)$")
-        ax[1].set_title("Calculating $\phi(Q)$")
+        ax[1].plot(self.q, fq, label=r"$\phi(Q)$")
+        ax[1].set_xlabel(r"Q ($\AA^{-1}$)")
+        ax[1].set_ylabel(r"$\phi(Q)$")
+        ax[1].set_title(r"Calculating $\phi(Q)$")
         ax[1].legend()
 
         # G(r)
         ax[2].plot(r, Gr0, label="G(r)")
         ax[2].set_xlim([0, 30])
-        ax[2].set_xlabel("r ($\AA$)")
+        ax[2].set_xlabel(r"r ($\AA$)")
         ax[2].set_ylabel("G(r)")
         ax[2].set_title("Calculating G(r)")
         ax[2].legend()
@@ -302,20 +312,46 @@ def Gr(q, fq, rmax, dr):
 
         return r, Gr/(2 * np.pi)
 
-def calc_Gr_Lorch(q, fq, rmax, dr, a, b):
-    
-    Gr = []
+
+def calc_Gr_Lorch(q, fq, rmax, dr, rmin=10, transition_width=5):
+    """
+    Computes G(r) with a Lorch window applied only after a certain rmin.
+    Before rmin, the raw F(q) is used. A smooth transition is applied over
+    `transition_width` Å.
+
+    Parameters:
+    - q: array of q values (Å⁻¹)
+    - fq: array of F(q)
+    - rmax: maximum r to calculate (Å)
+    - dr: r-step (Å)
+    - rmin: r below which Lorch is not applied
+    - transition_width: width of transition zone for blending (Å)
+    """
     r = np.arange(0, rmax, dr)
+    Gr = np.zeros_like(r)
+
+    delta = 2 * np.pi / np.max(q)
+    lorch_window = np.sinc((q * delta) / (2 * np.pi))
+    fq_lorch = fq * lorch_window
 
     for i, r_step in enumerate(r):
-        delta = (math.pi/q.max()) * (1-np.exp(-abs(r_step-a)/b))
-        lorch = np.sin(q * delta)/(q * delta)
-        integrand = 8 * lorch * math.pi * fq * np.sin(q * r_step)
-        Gr.append(np.trapz(integrand, q/(2* np.pi)))
-    r = np.array(r, dtype=np.float64)
-    Gr = np.array(Gr, dtype=np.float64)
+        # Compute transition blending weight
+        if r_step < rmin:
+            w = 0.0
+        elif r_step > rmin + transition_width:
+            w = 1.0
+        else:
+            # Smooth sigmoid transition
+            t = (r_step - rmin) / transition_width
+            w = 3*t**2 - 2*t**3  # cubic Hermite smoothstep
+
+        fq_blend = (1 - w) * fq + w * fq_lorch
+
+        integrand = 8 * np.pi * fq_blend * np.sin(q * r_step)
+        Gr[i] = np.trapz(integrand, q / (2 * np.pi))
 
     return r, Gr/(2 * np.pi)
+
 
 def q_to_two_theta(q_calibration, pixel_data, wavelength_nm):
     """

@@ -5,11 +5,11 @@ def set_plot_style():
     # Update rcParams
     rcParams['font.family'] = 'sans-serif'
     rcParams['font.sans-serif'] = ['Arial']
-    rcParams['font.size'] = 24
+    rcParams['font.size'] = 12
     rcParams['axes.linewidth'] = 1.1
     rcParams['axes.labelpad'] = 10.0
 
-    plot_color_cycle = cycler('color', ['#000000', '#0000FE', '#FE0000', '#008001', '#FD8000', '#8c564b', 
+    plot_color_cycle = cycler('color', ['#000000', '#FE0000', '#0000FE' , '#008001', '#FD8000', '#8c564b', 
                                         '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'])
     rcParams['axes.prop_cycle'] = plot_color_cycle
     rcParams['axes.xmargin'] = 0

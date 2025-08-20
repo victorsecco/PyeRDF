@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy.ma as ma
 from scipy.signal import find_peaks
 from scipy.interpolate import interp1d
+from medpy.filter.smoothing import anisotropic_diffusion
 
 
 class DataLoader:
@@ -91,7 +92,6 @@ class ImageProcessing:
       else:
         raise Exception('A imagem tem'f'{image.shape} e a mascara tem 'f'{mask.shape}')
 
-
 #Retirar os defeitos fixos das imagens
     def fixed_defects_mask(self, image, microscope):
       if microscope.lower() in ("titan"):
@@ -162,20 +162,25 @@ class ImageAnalysis:
     def __init__(self):
         pass
 
-    def find_center(self, image,  r, R, threshold, edges_thresh1 = 255, edges_thresh2 = 10):
+    def find_center(self, image,  r, R, threshold, niter=25, kappa=40, gamma=0.1):
         if image is None:
             return "Image not loaded properly. Check the image path."
 
 
-        blur = cv2.normalize(src=image, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        blur = cv2.GaussianBlur(blur, (3, 3), 30)
-        
+        blur = cv2.normalize(src=image, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+
+        # Apply anisotropic diffusion
+        blur = anisotropic_diffusion(blur, niter=niter, kappa=kappa, gamma=gamma, option=1)
+
+        # Convert back to [0, 255] uint8
+        blur = cv2.normalize(blur, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX).astype(np.uint8)
+
         final_im = np.where(blur > threshold, 255, 0)
         final_im = final_im.astype(np.uint8)
         
         edges = cv2.Canny(final_im, 0, 255)
 
-        circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1, minDist=100, param1=edges_thresh1, param2=edges_thresh2, minRadius= r, maxRadius=R)
+        circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1, minDist=100, param1=255, param2=10, minRadius= r, maxRadius=R)
 
         if circles is not None:
             circles = np.round(circles[0, :]).astype("int")
