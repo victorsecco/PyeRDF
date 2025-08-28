@@ -63,27 +63,6 @@ class ImageProcessing:
     def load_mask(self, mask_path):
       return np.array(Image.open(mask_path))
 
-#Função teste para inverter as imagens a partir do centro
-    def invert_images(self, images, center, beamstopper = "right"):
-      for i in range(len(images)):
-        if beamstopper == "left":
-          images[i] = images[i][:,:-1]
-        left_side = images[i][:,:center]
-        mirrored_half = np.flip(left_side, axis=1)
-        mirrored_image = np.concatenate((left_side, mirrored_half), axis=1)
-        mirrored_image = mirrored_image[:,106:4202]
-        cv2.imwrite(path + '/Sem beamstopper/' + names[i][:-4] + '.jpg', mirrored_image)
-      return None
-
-    #Função para alinhar as imagens e somá-las
-    def stack_translate(self, stack):
-        out_previous = StackReg(StackReg.TRANSLATION).register_transform_stack(stack, reference='previous')
-        return sum(out_previous)
-
-    def stack_rotate(self, stack):
-        out_previous = StackReg(StackReg.RIGID_BODY).register_transform_stack(stack, reference='previous')
-        return sum(out_previous)
-
     def subtract_mask(self, image, mask):
       if image.shape == mask.shape:
         image[mask==255] = 0
@@ -216,13 +195,6 @@ class ImageAnalysis:
 
       return new_data, polar_image, masked_image
 
-    def find_and_integrate(self, image, center_x, center_y, azimuth_range):
-      ai = pyFAI.AzimuthalIntegrator(dist=0.1,  pixel1=1e-4, pixel2=1e-4)
-      ai.setFit2D(image.shape[0]/2, center_x, center_y)
-      result = ai.integrate1d(image, 3000, unit='2th_deg', azimuth_range=azimuth_range, method="ocl_lut_integr")
-      peaks, _ = find_peaks(result[1], distance=150)
-      return peaks
-
     def optimize_center(self, image, initial_center_x, initial_center_y, azimuth_ranges, max_iterations):
       center_x, center_y = initial_center_x, initial_center_y
 
@@ -257,21 +229,7 @@ class ImageAnalysis:
               break
 
       return center_x, center_y
-
-    def plot_iq(self, x):
-        x = np.array(x)
-        fig, ax = plt.subplots(1, 1, figsize=(10, 7))
-        fig.suptitle("Integrated Iq", fontsize=16)
-        ax.set_xlim(0, x[0].max())
-        ax.set_ylim(0, x[1].max())
-        ax.set_yticks(np.arange(0, 100, 160))
-        ax.grid()
-        ax.grid(which='minor', linestyle='--')
-        ax.minorticks_on()
-        ax.plot(x[0], x[1], label='Python')
-        plt.show()
-        return fig, ax
-
+    
     def MSE(self, x, y):
         return math.sqrt(1/len(x) * sum((x - y)**2))
 
