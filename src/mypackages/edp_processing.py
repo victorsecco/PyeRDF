@@ -91,50 +91,49 @@ class ImageProcessing:
     def remove_border(self, image, border_size):
         return image[border_size:-border_size, border_size:-border_size]
 
-    def save_iq(self, iq, name):
-        if os.path.isfile(self.path):
-    # Get the directory part of the file path
-          directory = os.path.dirname(self.path)
-          iq = pd.DataFrame(np.transpose(np.array(iq)))
-          full_path = os.path.join(directory, "Results")
-          if not os.path.exists(full_path):
-            os.makedirs(full_path)
-          final_path = os.path.join(full_path, name)
-          iq.to_csv(f'{final_path}.csv', sep='\t', index=False, header=False)
-          return None
-        else:
-          iq = pd.DataFrame(np.transpose(np.array(iq)))
-          full_path = os.path.join(directory, "Results")
-          if not os.path.exists(full_path):
-            os.makedirs(full_path)
-          final_path = os.path.join(full_path, name)
-          iq.to_csv(f'{final_path}.csv', sep='\t', index=False, header=False)
-          return None
+def pad_image_for_hough(image, pad_width=512, mode='constant'):
+    p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
+    return p, pad_width
 
-    def save_iq_only_y(self, iq, name):
-        if os.path.isfile(self.path):
-    # Get the directory part of the file path
-          directory = os.path.dirname(self.path)
-          iq = pd.DataFrame(np.transpose(np.array(iq)))
-          if iq.shape[1] >= 2:
-            iq.drop(columns=[0], inplace=True)
-          full_path = os.path.join(os.path.dirname(directory), "Results")
-          if not os.path.exists(full_path):
-            os.makedirs(full_path)
-          final_path = os.path.join(full_path, name)
-          iq.to_csv(f'{final_path}.csv', sep='\t', index=False, header=False)
-          return None
-        else:
-          directory = self.path
-          iq = pd.DataFrame(np.transpose(np.array(iq)))
-          if iq.shape[1] >= 2:
-            iq.drop(columns=[0], inplace=True)
-          full_path = os.path.join(os.path.dirname(directory), "Results")
-          if not os.path.exists(full_path):
-            os.makedirs(full_path)
-          final_path = os.path.join(full_path, name)
-          iq.to_csv(f'{final_path}.csv', sep='\t', index=False, header=False)
-          return None
+def bin_2d_by_2(arr):
+    h, w = arr.shape
+    return arr.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
+
+def apply_timepix_cross(img):
+    img = img.copy()
+    img[255, :] = 0
+    img[:, 255] = 0
+    return img
+
+def apply_us4000_mask(img):
+    img = img.copy()
+    img[1915:,1002:1022] = 0
+    img[:120,1013:1030] = 0
+    return img
+
+def apply_beamstop_mask(img, mask_path):
+    mask = tifffile.imread(mask_path)
+    if mask.shape == img.shape:
+        m = mask
+    elif mask.shape[0] == 4096 and img.shape[0] == 2048:
+        m = bin_2d_by_2(mask)
+    else:
+        raise ValueError("Mask and image shapes incompatible.")
+    out = img.copy()
+    out[m == 255] = -10
+    return out
+
+
+def hot_pixel_filter(img, thr=100, ksize=3):
+    src = img.astype(np.float32, copy=False)
+    med = cv2.medianBlur(src, ksize)
+    mask = (src - med) > thr
+    out = src.copy()
+    out[mask] = med[mask]
+    return out.astype(img.dtype)
+
+
+
 
 #Encontrar o centro com a transformada de Hough para usar como chute inicial
 class ImageAnalysis:
