@@ -91,56 +91,12 @@ class ImageProcessing:
     def remove_border(self, image, border_size):
         return image[border_size:-border_size, border_size:-border_size]
 
-def pad_image_for_hough(image, pad_width=512, mode='constant'):
-    p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
-    return p, pad_width
-
-def bin_2d_by_2(arr):
-    h, w = arr.shape
-    return arr.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
-
-def apply_timepix_cross(img):
-    img = img.copy()
-    img[255, :] = 0
-    img[:, 255] = 0
-    return img
-
-def apply_us4000_mask(img):
-    img = img.copy()
-    img[1915:,1002:1022] = 0
-    img[:120,1013:1030] = 0
-    return img
-
-def apply_beamstop_mask(img, mask_path):
-    mask = tifffile.imread(mask_path)
-    if mask.shape == img.shape:
-        m = mask
-    elif mask.shape[0] == 4096 and img.shape[0] == 2048:
-        m = bin_2d_by_2(mask)
-    else:
-        raise ValueError("Mask and image shapes incompatible.")
-    out = img.copy()
-    out[m == 255] = -10
-    return out
-
-
-def hot_pixel_filter(img, thr=100, ksize=3):
-    src = img.astype(np.float32, copy=False)
-    med = cv2.medianBlur(src, ksize)
-    mask = (src - med) > thr
-    out = src.copy()
-    out[mask] = med[mask]
-    return out.astype(img.dtype)
-
-
-
-
 #Encontrar o centro com a transformada de Hough para usar como chute inicial
 class ImageAnalysis:
     def __init__(self):
         pass
 
-    def find_center(self, image,  r, R, threshold, niter=25, kappa=40, gamma=0.1):
+    def find_center(self, image,  r, R, threshold, niter=25, kappa=40, gamma=0.1, anisotropic=True):
         if image is None:
             return "Image not loaded properly. Check the image path."
 
@@ -148,7 +104,10 @@ class ImageAnalysis:
         blur = cv2.normalize(src=image, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 
         # Apply anisotropic diffusion
-        blur = anisotropic_diffusion(blur, niter=niter, kappa=kappa, gamma=gamma, option=1)
+        if anisotropic:
+            blur = anisotropic_diffusion(blur, niter=niter, kappa=kappa, gamma=gamma, option=1)
+        else:
+            blur = cv2.GaussianBlur(blur, (3, 3), 30)
 
         # Convert back to [0, 255] uint8
         blur = cv2.normalize(blur, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX).astype(np.uint8)
@@ -233,6 +192,59 @@ class ImageAnalysis:
         return math.sqrt(1/len(x) * sum((x - y)**2))
 
  
+def pad_image_for_hough(image, pad_width=512, mode='constant'):
+    p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
+    return p, pad_width
+
+def bin_2d_by_2(arr):
+    h, w = arr.shape
+    return arr.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
+
+def apply_timepix_cross(img):
+    img = img.copy()
+    img[255, :] = 0
+    img[:, 255] = 0
+    return img
+
+def apply_us4000_mask(img):
+    img = img.copy()
+    img[1915:,1002:1022] = 0
+    img[:120,1013:1030] = 0
+    return img
+
+def apply_beamstop_mask(img, mask_path):
+    mask = tifffile.imread(mask_path)
+    if mask.shape == img.shape:
+        m = mask
+    elif mask.shape[0] == 4096 and img.shape[0] == 2048:
+        m = bin_2d_by_2(mask)
+    else:
+        raise ValueError("Mask and image shapes incompatible.")
+    out = img.copy()
+    out[m == 255] = -10
+    return out
+
+def find_center_dispatch(img, padded, offset, analysis, manual, thresh = 100, c=None):
+    if manual:
+        cx, cy = c
+        cx, cy = 16.838044892381255, 7.780054061182113
+        r = thre = blur = edges = None
+        return cx, cy, r, thre, blur, edges
+    if padded:
+        cx, cy, r, thre, blur, edges = analysis.find_center(img, r=1, R=5000, threshold=thresh, niter=20, kappa=100, anisotropic_diffusion=False)
+    else:
+        cx, cy, r, thre, blur, edges = analysis.find_center(img, r=1, R=5000, threshold=thresh, niter=20, kappa=100, anisotropic_diffusion=False)
+    return cx, cy, r, thre, blur, edges
+
+
+def hot_pixel_filter(img, thr=100, ksize=3):
+    src = img.astype(np.float32, copy=False)
+    med = cv2.medianBlur(src, ksize)
+    mask = (src - med) > thr
+    out = src.copy()
+    out[mask] = med[mask]
+    return out.astype(img.dtype)
+
 
 def load_empad_data(file_path, num_images):
     """

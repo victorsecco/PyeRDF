@@ -198,35 +198,16 @@ class DataProcessor:
         Gr = Gr * (1 - ((3 / 2) * (r_values / diameter)) + (0.5 * (r_values / diameter) ** 3)) * np.exp(-((r_values * 0.2 ** 2) / 2))
         return Gr
 
-    def inverse_fourier_transform(self, Gr, r_values):
-
-        """
-        Calculation of the inverse Fourier transform using the numpy numerical trapezoidal integration method
-        
-        Parameters:
-        - Gr: pair distribution function calculated after corrections
-        - r_values: array of evenly spaced distance values
-        - fq_direct: fq calculated from total scattering
-        - density: number density in number of atoms per cubic angstrom  
-        
-        Returns:
-        - fq_inverse: recalculated fq (the scale is not yet understood and is not optimized, a z-score
-        normalization is needed)
-        """
-
-        # Initialize S(Q) to zeros
-        fq_inverse = np.zeros_like(self.q)
-
-        # Perform the inverse Fourier transform
-        for i, dq in enumerate(self.q):
-            integrand = Gr * np.sin(dq * r_values)
-            fq_inverse[i] = np.trapz(integrand, r_values)
-        #fq_inverse = fq_inverse*normalization_factor
-        #if sum(fq_direct) != 0:
-        #    fq_inverse = sum(fq_inverse) / sum(fq_direct) * fq_inverse
-        #    return fq_inverse
-        #else:
+    def inverse_fourier_transform(self, r_values, Gr):
+        Gr = np.asarray(Gr, dtype=np.float64)
+        r = np.asarray(r_values, dtype=np.float64)
+        if Gr.shape != r.shape:
+            raise ValueError("Gr and r_values must have the same shape.")
+        Q = np.asarray(self.q, dtype=np.float64)
+        sin_qr = np.sin(np.outer(Q, r))
+        fq_inverse = np.trapz(Gr * sin_qr, x=r, axis=1)
         return fq_inverse
+
 
     def IQ(self, fq, damping):
         """

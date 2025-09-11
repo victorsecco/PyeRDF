@@ -1,7 +1,11 @@
+import os
+from pathlib import Path
 import numpy as np
 import tifffile
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
+from tkinter import Tk, filedialog
+import csv
 from mypackages.edp_processing import ImageAnalysis, peak_calibration
 
 try:
@@ -117,7 +121,9 @@ def calibrate_gold_tiff(
     interactive=True,
     show_plot=True,
     subset_indices=None,
-    start_offset=0
+    start_offset=0,
+    manual=False,
+    c=None
 ):
     analysis = ImageAnalysis()
     img = tifffile.imread(path)
@@ -131,7 +137,11 @@ def calibrate_gold_tiff(
     if beamstop_mask_path:
         img = apply_beamstop_mask(img, beamstop_mask_path)
     padded, pad_off = _pad_for_center(img, pad=pad_for_center)
-    cx, cy = _find_center(padded, analysis, padded_offset=pad_off, threshold=threshold_center)
+    if manual:
+        cx, cy = c
+    else:
+        cx, cy = _find_center(padded, analysis, padded_offset=pad_off, threshold=threshold_center)
+    print(cx, cy)
     profile = _azimuth_integrate(img, (cx, cy), analysis, binning=binning)
     slice_profile = profile[start_offset:]
     peaks_rel = _auto_select_peaks(
@@ -162,18 +172,61 @@ def calibrate_gold_tiff(
         "subset_indices": subset_indices,
         "subset_pixels_abs": subset_pixels_abs
     }
+def pick_tiff(initialdir=None):
+    root = Tk()
+    root.withdraw()
+    if initialdir is None:
+        initialdir = r"Z:\ActualWork\Victor\raw_data"
+    fp = filedialog.askopenfilename(
+        title="Select TIFF",
+        initialdir=initialdir,
+        filetypes=[("TIFF files", "*.tif *.tiff"), ("All files", "*.*")]
+    )
+    root.destroy()
+    if not fp:
+        raise SystemExit("No file selected.")
+    return fp
+
+def pick_csv(initialdir=None):
+    root = Tk()
+    root.withdraw()
+    if initialdir is None:
+        initialdir = r"Z:\ActualWork\Victor\processed_data"
+    fp = filedialog.asksaveasfilename(
+        title="Select or Create CSV file",
+        initialdir=initialdir,
+        defaultextension=".csv",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    root.destroy()
+    if not fp:
+        raise SystemExit("No CSV file selected.")
+    return fp
+
+def prepend_csv_row(csv_path, row):
+    # Read existing rows if file exists
+    if os.path.exists(csv_path):
+        with open(csv_path, "r", newline="") as f:
+            old_rows = f.readlines()
+    else:
+        old_rows = []
+
+    # Write new row + old rows
+    with open(csv_path, "w", newline="") as f:
+        f.write(",".join(map(str, row)) + "\n")
+        f.writelines(old_rows)
 
 if __name__ == "__main__":
-    path = r"Z:\ActualWork\Victor\raw_data\spirit\Au\20250827\test_marco374_33.374.tif"
+    selected_path = pick_tiff()
     px, diag = calibrate_gold_tiff(
-        path,
+        selected_path,
         pad_for_center=256,
-        threshold_center=10,
+        threshold_center=150,
         binning=2048,
         min_pixel_rel=0,
         n_peaks=10,
         distance=5,
-        prominence=80,
+        prominence=20,
         use_timepix_mask=False,
         use_us4000_mask=False,
         beamstop_mask_path=None,
@@ -181,6 +234,12 @@ if __name__ == "__main__":
         interactive=True,
         show_plot=True,
         subset_indices=None,
-        start_offset=150
+        start_offset=70,
+        manual=True,
+        c=(2022.00, 1860.00)
     )
     print(px)
+
+    csv_path = pick_csv()
+    prepend_csv_row(csv_path, [px])
+    print(f"Calibration value {px} prepended to {csv_path}")
