@@ -1,6 +1,4 @@
-#@title 1.1. Classes e funções
 import numpy as np
-import os
 import pandas as pd
 import math
 import matplotlib.pyplot as plt
@@ -9,128 +7,175 @@ from scipy.optimize import minimize
 from pathlib import Path
 
 class DataProcessor:
-    def __init__(self, data, q0, lobato_path, start, end, ds, Elements, region):
-        # Assuming 'data_df' is a DataFrame with multiple columns of data
-        self.data = data
-        self.start = start
-        self.end = end
-        self.ds = ds
-        from pathlib import Path
-
+    def __init__(self, lobato_path = False):
+  
+        #path to electron scattering factors table
         default_lobato_path = Path(__file__).parent / "data" / "Lobato_2014.txt"
         self.lobato = Path(lobato_path) if lobato_path else default_lobato_path
 
-        self.region = region
-        self.q0 = q0
+    def load_and_process_data(self, data=None, *, start=None, end=None, ds=None, q0=None):
+        Iq = np.array(self.data if data is None else data)
+        self.start = self.start if start is None else start
+        self.end = self.end if end is None else end
+        self.ds = self.ds if ds is None else ds
+        self.q0 = self.q0 if q0 is None else q0
 
-        total = []
-        for element in Elements:
-            if Elements[element]:
-                total.append(Elements[element][1])
-        soma = sum(total)
+        self.x = np.arange(self.start, self.end)
+        self.iq = Iq[self.start:self.end]
+        self.q = self.q0 + self.x * self.ds * 2 * math.pi
+        self.s = self.q / (2 * math.pi)
+        self.s2 = self.s ** 2
+        return self.x, self.iq, self.q, self.s, self.s2
 
-        for element in Elements:
-            if Elements[element]:
-                Elements[element].append(Elements[element][1] / soma)
-        self.Elements = Elements
+    def Lobato_Factors(self, *, lobato_path=None, elements=None, s2=None, x=None):
+        self.lobato = Path(self.lobato if lobato_path is None else lobato_path)
+        self.Elements = self.Elements if elements is None else elements
+        self.s2 = self.s2 if s2 is None else np.asarray(s2)
+        self.x = self.x if x is None else np.asarray(x)
 
-        # Load and process data in the constructor
-        self.x, self.iq, self.q, self.s, self.s2 = self.load_and_process_data(data)
-        self.lobato_factors = self.Lobato_Factors()
-        self.fq_sq, self.gq, self.fqfit, self.iqfit = self.fq_gq()
-        self.N, self.C, self.autofit = self.N_and_parameters(region=self.region)
+        # normalize in place
+        normalize_elements_inplace(self.Elements)
 
-    def load_and_process_data(self, data_column):
-        Iq = np.array(data_column)
-        x = np.arange(self.start, self.end)
-        iq = Iq[self.start:self.end]
-        q = x * self.ds * 2 * math.pi  # q0 no longer needed
-        s = q / (2 * math.pi)
-        s2 = s ** 2
-        return x, iq, q, s, s2
-
-
-    def Lobato_Factors(self):
         FACTORS = []
         Lobato_Factors = np.empty(shape=(0))
         df = pd.read_csv(self.lobato, header=None)
-        counter = 0
+
         for element in self.Elements:
             if self.Elements[element]:
                 FACTORS.append(np.array(df.iloc[self.Elements[element][0]]))
 
         for LF in FACTORS:
-            Lobato_Factors = np.append(Lobato_Factors,
-                                       (((LF[0] * (self.s2 * LF[5] + 2) / (self.s2 * LF[5] + 1) ** 2)) +
-                                        ((LF[1] * (self.s2 * LF[6] + 2) / (self.s2 * LF[6] + 1) ** 2)) +
-                                        ((LF[2] * (self.s2 * LF[7] + 2) / (self.s2 * LF[7] + 1) ** 2)) +
-                                        ((LF[3] * (self.s2 * LF[8] + 2) / (self.s2 * LF[8] + 1) ** 2)) +
-                                        ((LF[4] * (self.s2 * LF[9] + 2) / (self.s2 * LF[9] + 1) ** 2))))
-        Lobato_Factors = Lobato_Factors.reshape(len(FACTORS), len(self.x))
+            Lobato_Factors = np.append(
+                Lobato_Factors,
+                ((LF[0] * (self.s2 * LF[5] + 2) / (self.s2 * LF[5] + 1) ** 2) +
+                (LF[1] * (self.s2 * LF[6] + 2) / (self.s2 * LF[6] + 1) ** 2) +
+                (LF[2] * (self.s2 * LF[7] + 2) / (self.s2 * LF[7] + 1) ** 2) +
+                (LF[3] * (self.s2 * LF[8] + 2) / (self.s2 * LF[8] + 1) ** 2) +
+                (LF[4] * (self.s2 * LF[9] + 2) / (self.s2 * LF[9] + 1) ** 2))
+            )
 
-        return Lobato_Factors
+        self.lobato_factors = Lobato_Factors.reshape(len(FACTORS), len(self.x))
+        return self.lobato_factors
 
-    def fq_gq(self) -> tuple[np.ndarray, np.ndarray, float, float]:
+    def compute_weighted_factors(self):
         """
-        Calculate F(Q) and G(Q) arrays, including fitting parameters.
+        Compute weighted scattering-factor moments over Q.
 
-        Returns:
-            tuple: fq squared, gq, fqfit, iqfit values.
+        Attributes set
+        --------------
+        self.fbar_sq : array
+            [Σ_i w_i f_i(Q)]^2 — square of the weighted-average scattering factor.
+        self.mean_f2 : array
+            Σ_i w_i [f_i(Q)]^2 — weighted average of squared scattering factors.
+        self.fbar_sq_ref : float
+            fbar_sq at the reference index (last point of the processed range).
+        self.iq_ref : float
+            I(Q) at the same reference index.
+
+        Returns
+        -------
+        fbar_sq, mean_f2, fbar_sq_ref, iq_ref
         """
-        fq_list = []
-        gq_list = []
+        f_terms = []
+        f2_terms = []
 
-        for idx, element in enumerate(self.Elements):
-            weight = self.Elements[element][2]
-            fq_list.append(self.lobato_factors[idx] * weight)
-            gq_list.append((self.lobato_factors[idx] ** 2) * weight)
+        for idx, elem in enumerate(self.Elements):
+            w = self.Elements[elem][2]
+            fi = self.lobato_factors[idx]          # f_i(Q)
+            f_terms.append(w * fi)                 # w_i f_i(Q)
+            f2_terms.append(w * (fi ** 2))         # w_i f_i(Q)^2
 
-        fq_array = np.array(fq_list)
-        gq_array = np.array(gq_list)
+        f_terms = np.asarray(f_terms)
+        f2_terms = np.asarray(f2_terms)
 
-        fq_sq = np.sum(fq_array, axis=0) ** 2
-        gq = np.sum(gq_array, axis=0)
+        fbar = np.sum(f_terms, axis=0)             # Σ_i w_i f_i(Q)
+        self.fbar_sq = fbar ** 2                   # [Σ_i w_i f_i(Q)]^2
+        self.mean_f2 = np.sum(f2_terms, axis=0)    # Σ_i w_i f_i(Q)^2
 
-        fqfit = gq[self.end - (self.start + 1)]
-        iqfit = self.iq[self.end - (self.start + 1)]
+        ref_idx = -1
+        self.fbar_sq_ref = self.fbar_sq[ref_idx]
+        self.iq_ref = self.iq[ref_idx]
 
-        return fq_sq, gq, fqfit, iqfit
-
+        return self.fbar_sq, self.mean_f2, self.fbar_sq_ref, self.iq_ref
 
     def N_and_parameters(self, region=0):
-        interval = int(region*len(self.x))
+        """
+        Estimate scaling constant N and background parameter C by
+        fitting the experimental I(Q) against calculated scattering
+        moments.
+
+        Parameters
+        ----------
+        region : float
+            Fraction (0–1) of the Q range from which to start the fit.
+
+        Returns
+        -------
+        N : float
+            Scaling factor for the scattering.
+        C : float
+            Constant background offset.
+        autofit : array
+            Fitted I(Q) curve from the model.
+        """
+        interval = int(region * len(self.x))
         wi = np.ones_like(self.x[interval:])
 
-        a1 = np.sum(self.gq[interval:] * self.iq[interval:])
-        a2 = np.sum(self.iq[interval:] * self.fqfit)
-        a3 = np.sum(self.gq[interval:] * self.iqfit)
-        a4 = np.sum(wi[interval:]) * self.fqfit * self.iqfit
-        a5 = np.sum(self.gq[interval:] ** 2)
-        a6 = 2 * np.sum(self.gq[interval:]) * self.fqfit
-        a7 = np.sum(wi[interval:]) * self.fqfit * self.fqfit
+        a1 = np.sum(self.mean_f2[interval:] * self.iq[interval:])
+        a2 = np.sum(self.iq[interval:] * self.fbar_sq_ref)
+        a3 = np.sum(self.mean_f2[interval:] * self.iq_ref)
+        a4 = np.sum(wi[interval:]) * self.fbar_sq_ref * self.iq_ref
+        a5 = np.sum(self.mean_f2[interval:] ** 2)
+        a6 = 2 * np.sum(self.mean_f2[interval:]) * self.fbar_sq_ref
+        a7 = np.sum(wi[interval:]) * self.fbar_sq_ref ** 2
 
         N = (a1 - a2 - a3 + a4) / (a5 - a6 + a7)
 
-        # Fitting Parameters
-        C = self.iqfit - N * self.fqfit
-        autofit = N * self.gq + C
+        # Fitting parameters
+        C = self.iq_ref - N * self.fbar_sq_ref
+        autofit = N * self.mean_f2 + C
 
         return N, C, autofit
+    
+    def sq_fq(self, iq, damping):
+        """
+        Compute reduced structure function S(Q) and total scattering function F(Q) from intensities.
 
-    def SQ_PhiQ(self, iq, damping):
-        sq = (((iq - self.autofit)) / (self.N * self.fq_sq)) + 1
-        fq = (((iq - self.autofit) * self.s) / (self.N * self.fq_sq)) * np.exp(-self.s2 * damping)
+        Attributes set
+        --------------
+        self.sq : array
+            Structure function S(Q).
+        self.fq : array
+            Total scattering function F(Q).
 
-        return sq, fq
+        Parameters
+        ----------
+        iq : array
+            Experimental intensity I(Q).
+        damping : float
+            Damping factor applied to F(Q) at high Q.
+
+        Returns
+        -------
+        sq : array
+            Structure function S(Q).
+        fq : array
+            Total scattering function F(Q).
+        """
+        numerator = iq - self.autofit
+        self.sq = (numerator / (self.N * self.fbar_sq)) + 1
+        self.fq = (numerator * self.s / (self.N * self.fbar_sq)) * np.exp(-self.s2 * damping)
+
+        return self.sq, self.fq
     
     def Gr(self, fq, rmax, dr):
         Gr = []
         r = np.arange(0, rmax, dr)
 
-        for i, r_step in enumerate(r):
+        for r_step in r:
             integrand = 8 * math.pi * fq * np.sin(self.q * r_step)
-            Gr.append(np.trapz(integrand, self.q/(2* np.pi)))
-        # Convert lists to numpy arrays for consistency
+            Gr.append(np.trapezoid(integrand, self.q/(2* np.pi)))
+        
         r = np.array(r, dtype=np.float64)
         Gr = np.array(Gr, dtype=np.float64)
 
@@ -153,7 +198,7 @@ class DataProcessor:
 
         for i, r_step in enumerate(r):
             integrand = 8 * np.pi * fq_mod * np.sin(self.q * r_step)
-            Gr[i] = np.trapz(integrand, self.q / (2 * np.pi))  # Integration over q in Å⁻¹
+            Gr[i] = np.trapezoid(integrand, self.q / (2 * np.pi))  # Integration over q in Å⁻¹
 
         return r, Gr
 
@@ -173,20 +218,7 @@ class DataProcessor:
         return r, Gr
 
     def low_r_correction(self, Gr, nd, r, r_cut, scale_factor = 1):
-
-        """
-        Correction of the low frequency signal in the fq that generates 
-        
-        Parameters:
-        - Gr: pair distribution function calculated after corrections
-        - r_values: array of evenly spaced distance values
-        - fq_direct: fq calculated from total scattering
-        - density: number density in number of atoms per cubic angstrom  
-        
-        Returns:
-        - fq_inverse: recalculated fq (the scale is not yet understood and is not optimized, a z-score
-        normalization is needed)
-        """
+        #empirical low-r G(r) correction
 
         number_density_line = -4 * math.pi * nd * r * scale_factor
         Gr_low_r = np.where(r < r_cut, Gr, 0)
@@ -205,7 +237,7 @@ class DataProcessor:
             raise ValueError("Gr and r_values must have the same shape.")
         Q = np.asarray(self.q, dtype=np.float64)
         sin_qr = np.sin(np.outer(Q, r))
-        fq_inverse = np.trapz(Gr * sin_qr, x=r, axis=1)
+        fq_inverse = np.trapezoid(Gr * sin_qr, x=r, axis=1)
         return fq_inverse
 
 
@@ -333,6 +365,19 @@ def calc_Gr_Lorch(q, fq, rmax, dr, rmin=10, transition_width=5):
 
     return r, Gr/(2 * np.pi)
 
+
+def normalize_elements_inplace(Elements):
+    mults = [v[1] for v in Elements.values() if v and len(v) >= 2]
+    s = float(sum(mults))
+    if s == 0:
+        raise ValueError("Sum of multiplicities is zero.")
+    for k, v in Elements.items():
+        if v and len(v) >= 2:
+            w = v[1] / s
+            if len(v) >= 3:
+                v[2] = w         # overwrite existing weight
+            else:
+                v.append(w)
 
 def q_to_two_theta(q_calibration, pixel_data, wavelength_nm):
     """
