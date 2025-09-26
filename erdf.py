@@ -1,11 +1,10 @@
 import math
-import os
 import ast
 import pandas as pd
 import numpy as np
 import tkinter as tk
 import matplotlib
-matplotlib.use("TkAgg")  # must be before importing pyplot
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from tkinter import filedialog
 from pathlib import Path
@@ -31,7 +30,7 @@ class ParameterDialog(tk.Toplevel):
         }
 
         row = 0
-        for label, key in [("q0", "q0"),("qmin", "qmin"), ("qmax", "qmax"), ("degree", "degree"),
+        for label, key in [("q0", "q0"), ("qmin", "qmin"), ("qmax", "qmax"), ("degree", "degree"),
                            ("rmax", "rmax"), ("dr", "dr")]:
             tk.Label(self, text=label).grid(row=row, column=0, padx=8, pady=6, sticky="e")
             tk.Entry(self, textvariable=self.vars[key], width=18).grid(row=row, column=1, padx=8, pady=6, sticky="w")
@@ -77,13 +76,14 @@ def main():
     start_name = filedialog.askopenfilename(
         title="Select diffraction CSV",
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-        initialdir= r"Z:\ActualWork\Victor\processed_data"
+        initialdir=str(Path(r"Z:\ActualWork\Victor\processed_data"))
     )
     if not start_name:
         raise RuntimeError("No file selected.")
+    start_path = Path(start_name)
 
     defaults = {
-        "q0": 1.0,
+        "q0": 0.0,
         "qmin": 1.0,
         "qmax": 18.0,
         "degree": 8,
@@ -91,7 +91,6 @@ def main():
         "dr": 0.01,
         "elements": {"Au": [79, 1]}
     }
-
     dlg = ParameterDialog(root, defaults)
     if dlg.result is None:
         raise RuntimeError("Cancelled.")
@@ -104,63 +103,77 @@ def main():
     dr = dlg.result["dr"]
     Elements = dlg.result["elements"]
 
-    df0 = pd.read_csv(start_name, header=None)
-    ds = (df0.iloc[0, 0])/(2*math.pi)
-    df = pd.read_csv(start_name, header=None, skiprows=2)
-    data = df.sum(axis=1)
+    df0 = pd.read_csv(start_path, header=None)
+    ds = (df0.iloc[0, 0]) / (2 * math.pi)
+    df = pd.read_csv(start_path, header=None, skiprows=2)
+    data = df.sum(axis=1).values
 
     start = int((qmin - q0) / (ds * 2 * math.pi))
     end = int((qmax - q0) / (ds * 2 * math.pi))
-    end = min(end, len(data))
+    start = max(0, start)
+    end = min(len(data), max(start + 1, end))
 
-    dp1 = DataProcessor(data=data, q0=q0, lobato_path=None, start=start, end=end, ds=ds, Elements=Elements, region=0)
-    _, fq = dp1.SQ_PhiQ(dp1.iq, damping=0)
+    dp = DataProcessor()
 
-    norm_data = dp1.iq / (dp1.N * dp1.fq_sq)
-    norm_data = norm_data * dp1.q
+    x, iq, q, s, s2 = dp.load_and_process_data(
+        data=data,
+        start=start,
+        end=end,
+        ds=ds,
+        q0=q0
+    )
 
-    coefficients = np.polyfit(dp1.q, norm_data, degree)
+    dp.Elements = Elements
+    dp.Lobato_Factors()
+    dp.compute_weighted_factors()
+    dp.N_and_parameters(region=0.0)
+
+    _, fq = dp.sq_fq(iq, damping=0.0)
+
+    norm_data = (dp.iq / (dp.N * dp.fbar_sq)) * dp.q
+    coefficients = np.polyfit(dp.q, norm_data, degree)
     polynomial = np.poly1d(coefficients)
-    y_fit = polynomial(dp1.q)
+    y_fit = polynomial(dp.q)
     fq_poly = norm_data - y_fit
 
-    r_raw, Gr_raw = Gr(dp1.q, fq, rmax=rmax, dr=dr)
-    # close Tk root so Matplotlib owns the event loop
+    r_raw, Gr_raw = Gr(dp.q, fq, rmax=rmax, dr=dr)
+
     try:
         root.destroy()
     except Exception:
         pass
 
-    dp1.plot_results(fq, r_raw, Gr0=Gr_raw)
-    plt.show(block=True) 
+    dp.plot_results(fq, r_raw, Gr0=Gr_raw)
+    plt.show(block=True)
 
     save_dir = filedialog.askdirectory(
         title="Select folder to save results",
-        initialdir=r"Z:\ActualWork\Victor\processed_data"
+        initialdir=str(Path(r"Z:\ActualWork\Victor\processed_data"))
     )
     if not save_dir:
         raise RuntimeError("No save folder selected.")
+    save_path = Path(save_dir)
 
-    stem = Path(start_name).stem
-    fq_path = os.path.join(save_dir, f"fq_{stem}.csv")
-    gr_path = os.path.join(save_dir, f"gr_{stem}.csv")
-    iq_path = os.path.join(save_dir, f"iq_{stem}.csv")
+    stem = start_path.stem
+    fq_path = save_path / f"fq_{stem}.csv"
+    gr_path = save_path / f"gr_{stem}.csv"
+    iq_path = save_path / f"iq_{stem}.csv"
 
-    df_fq = pd.DataFrame({"q": dp1.q, "fq": fq_poly})
+    df_fq = pd.DataFrame({"q": dp.q, "fq": fq_poly})
     df_gr = pd.DataFrame({"r": r_raw, "Gr": Gr_raw})
-    df_iq = pd.DataFrame({"q": dp1.q, "iq": dp1.iq})
+    df_iq = pd.DataFrame({"q": dp.q, "iq": dp.iq})
 
-    with open(fq_path, "w", newline="") as f:
-        f.write(f"# source={Path(start_name).name}\n")
+    with fq_path.open("w", newline="") as f:
+        f.write(f"# source={start_path.name}\n")
         df_fq.to_csv(f, index=None)
 
-    with open(gr_path, "w", newline="") as f:
-        f.write(f"# source={Path(start_name).name}\n")
+    with gr_path.open("w", newline="") as f:
+        f.write(f"# source={start_path.name}\n")
         df_gr.to_csv(f, index=None)
 
-    with open(iq_path, "w", newline="") as f:
-        f.write(f"# source={Path(start_name).name}\n")
-        df_iq.to_csv(f,  index=None)
+    with iq_path.open("w", newline="") as f:
+        f.write(f"# source={start_path.name}\n")
+        df_iq.to_csv(f, index=None)
 
     print(f"Saved {fq_path}, {gr_path}, {iq_path}")
 
