@@ -19,6 +19,7 @@ Alternatively, download the ZIP from GitHub and extract it, then cd into the ext
     conda create -n epdf python=3.9 -y
     conda activate epdf
 
+Python versions >=3.9 will work.
 
 3. **Build the package**
 
@@ -38,3 +39,10 @@ This will create distribution files (.whl and .tar.gz) inside the dist/ director
 
     ```bash
     pip install opencv-python tifffile matplotlib pandas scipy medpy
+
+# Installation (with Pip)
+
+Since this installation include C compiled dependencies (numpy, scipy, matplotlib), conda is more suitable for installation. If only using pip, python versions above 3.11, that have the ready-made wheels for these packages, are needed. To use only wheels and not built any dependencies from source code, add ```bash --only-binary=:all:``` to the bash command. 
+
+    ```bash
+    pip install --only-binary=:all: "numpy<2" "matplotlib<3.9" "pandas<2.2" "scipy<1.12" tifffile opencv-python
