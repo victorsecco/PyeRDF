@@ -59,7 +59,7 @@ def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
 
         choice = simpledialog.askstring(
             "Adjust center/threshold",
-            "Options: ok | center | threshold | cancel"
+            "Options: ok | c | t | cancel"
         )
         if not choice:
             continue
@@ -67,7 +67,7 @@ def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
 
         if choice == "ok":
             return cx, cy, r, threshold, data
-        elif choice == "center":
+        elif choice == "c":
             s = simpledialog.askstring("Set center", "Enter center as x,y (pixels):")
             if s:
                 try:
@@ -75,7 +75,7 @@ def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
                     cx, cy = float(x_str), float(y_str)
                 except Exception:
                     messagebox.showerror("Error", "Invalid format. Use x,y")
-        elif choice == "threshold":
+        elif choice == "t":
             t = simpledialog.askinteger("Set threshold", "Enter integer threshold:", minvalue=0, maxvalue=1000000)
             if t is not None:
                 threshold = int(t)
@@ -92,7 +92,6 @@ root.withdraw()
 file_path = filedialog.askopenfilename(
     title="Select diffraction image",
     filetypes=[("TIFF files", "*.tif *.tiff"), ("All files", "*.*")],
-    initialdir=r"Z:\ActualWork\Victor\raw_data" # <- put your preferred default folder here
 )
 
 if not file_path:
@@ -117,7 +116,7 @@ else:
 threshold0 = 80 if side else 150
 cx, cy, r, threshold_used, data = refine_center(img_padded if side else img, analysis, side=side, offset=offset, threshold_init=threshold0)
 
-save_dir = filedialog.askdirectory(title="Select folder to save CSV", initialdir=r"Z:\ActualWork\Victor\processed_data")
+save_dir = filedialog.askdirectory(title="Select folder to save CSV")
 if not save_dir:
     raise RuntimeError("No folder selected.")
 

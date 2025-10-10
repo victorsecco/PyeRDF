@@ -1,11 +1,9 @@
 import os
-from pathlib import Path
 import numpy as np
 import tifffile
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from tkinter import Tk, filedialog
-import csv
 from mypackages.edp_processing import ImageAnalysis, peak_calibration
 
 try:
@@ -36,7 +34,8 @@ def _find_center(img, analysis, padded_offset=0, threshold=110):
         cy -= padded_offset
     return float(cx), float(cy)
 
-def _azimuth_integrate(img, center, analysis, binning=2048):
+def _azimuth_integrate(img, center, analysis):
+    binning = img.shape[0]
     data, _, _ = analysis.azimuth_integration_cv2(img, center=[center[0], center[1]], binning=binning)
     return np.asarray(data)
 
@@ -108,7 +107,6 @@ def calibrate_gold_tiff(
     path,
     pad_for_center=256,
     threshold_center=110,
-    binning=2048,
     min_pixel_rel=0,
     n_peaks=4,
     distance=10,
@@ -142,7 +140,8 @@ def calibrate_gold_tiff(
     else:
         cx, cy = _find_center(padded, analysis, padded_offset=pad_off, threshold=threshold_center)
     print(cx, cy)
-    profile = _azimuth_integrate(img, (cx, cy), analysis, binning=binning)
+    binning = img.shape[0]
+    profile = _azimuth_integrate(img, (cx, cy), analysis)
     slice_profile = profile[start_offset:]
     peaks_rel = _auto_select_peaks(
         slice_profile,
@@ -175,8 +174,6 @@ def calibrate_gold_tiff(
 def pick_tiff(initialdir=None):
     root = Tk()
     root.withdraw()
-    if initialdir is None:
-        initialdir = r"Z:\ActualWork\Victor\raw_data"
     fp = filedialog.askopenfilename(
         title="Select TIFF",
         initialdir=initialdir,
@@ -190,8 +187,6 @@ def pick_tiff(initialdir=None):
 def pick_csv(initialdir=None):
     root = Tk()
     root.withdraw()
-    if initialdir is None:
-        initialdir = r"Z:\ActualWork\Victor\processed_data"
     fp = filedialog.asksaveasfilename(
         title="Select or Create CSV file",
         initialdir=initialdir,
@@ -221,8 +216,7 @@ if __name__ == "__main__":
     px, diag = calibrate_gold_tiff(
         selected_path,
         pad_for_center=256,
-        threshold_center=150,
-        binning=2048,
+        threshold_center=180,
         min_pixel_rel=0,
         n_peaks=10,
         distance=5,
@@ -234,8 +228,8 @@ if __name__ == "__main__":
         interactive=True,
         show_plot=True,
         subset_indices=None,
-        start_offset=70,
-        manual=True,
+        start_offset=50,
+        manual=False,
         c=(2022.00, 1860.00)
     )
     print(px)

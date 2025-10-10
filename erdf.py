@@ -108,7 +108,11 @@ def main():
     df = pd.read_csv(start_path, header=None, skiprows=2)
     data = df.sum(axis=1).values
 
-    start = int((qmin - q0) / (ds * 2 * math.pi))
+    try:
+        start = int((qmin - q0) / (ds * 2 * math.pi))
+    except OverflowError:
+        raise OverflowError("The calibration factor ds cannot be zero. The ds should be the first line of your csv")
+
     end = int((qmax - q0) / (ds * 2 * math.pi))
     start = max(0, start)
     end = min(len(data), max(start + 1, end))
@@ -136,7 +140,7 @@ def main():
     y_fit = polynomial(dp.q)
     fq_poly = norm_data - y_fit
 
-    r_raw, Gr_raw = Gr(dp.q, fq, rmax=rmax, dr=dr)
+    r_raw, Gr_raw = Gr(dp.q, fq_poly, rmax=rmax, dr=dr)
 
     try:
         root.destroy()
