@@ -7,8 +7,8 @@ This repository basically is most of the programming code I developed during my 
 1. **Clone or download the repository**
 
    ```bash
-   git clone https://github.com/victorsecco/PhD.git
-   cd PhD
+   git clone https://github.com/victorsecco/pyeRDF.git
+   
 Alternatively, download the ZIP from GitHub and extract it, then cd into the extracted folder.
 
 
