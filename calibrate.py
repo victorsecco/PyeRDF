@@ -4,7 +4,9 @@ import tifffile
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from tkinter import Tk, filedialog
-from mypackages.edp_processing import ImageAnalysis, peak_calibration
+from mypackages.edp_processing import ImageAnalysis, ImageProcessing, peak_calibration
+from azim_integ import refine_center
+
 
 try:
     from mypackages.edp_processing import (
@@ -21,11 +23,7 @@ except Exception:
     def apply_us4000_mask(x): return x
     def apply_beamstop_mask(x, path): return x
 
-def _pad_for_center(img, pad=256):
-    if not pad or pad <= 0:
-        return img, 0
-    p = pad
-    return np.pad(img, ((p, p), (p, p)), mode="constant"), p
+
 
 def _find_center(img, analysis, padded_offset=0, threshold=110):
     cx, cy, _, _, _, _ = analysis.find_center(img, r=1, R=5000, threshold=threshold, niter=20, kappa=100)
@@ -34,10 +32,6 @@ def _find_center(img, analysis, padded_offset=0, threshold=110):
         cy -= padded_offset
     return float(cx), float(cy)
 
-def _azimuth_integrate(img, center, analysis):
-    binning = img.shape[0]
-    data, _, _ = analysis.azimuth_integration_cv2(img, center=[center[0], center[1]], binning=binning)
-    return np.asarray(data)
 
 def _auto_select_peaks(profile_slice, n_peaks=4, distance=10, height=None, prominence=50, min_pixel_rel=0):
     pk_all, props = find_peaks(profile_slice, distance=distance, height=height, prominence=prominence)
@@ -105,7 +99,7 @@ def _prompt_subset(peaks_rel, profile_slice, default_n, start_offset):
 
 def calibrate_gold_tiff(
     path,
-    pad_for_center=256,
+    pad=256,
     threshold_center=110,
     min_pixel_rel=0,
     n_peaks=4,
@@ -124,24 +118,32 @@ def calibrate_gold_tiff(
     c=None
 ):
     analysis = ImageAnalysis()
+    processing = ImageProcessing()
     img = tifffile.imread(path)
-    if preprocess:
-        img = hot_pixel_filter(img, thr=100, ksize=3)
-        img = remove_n_smallest_and_add_offset(img, n=50, offset=44)
-    if use_timepix_mask:
-        img = apply_timepix_cross(img)
-    if use_us4000_mask:
-        img = apply_us4000_mask(img)
-    if beamstop_mask_path:
-        img = apply_beamstop_mask(img, beamstop_mask_path)
-    padded, pad_off = _pad_for_center(img, pad=pad_for_center)
-    if manual:
-        cx, cy = c
+    # if preprocess:
+    #     img = hot_pixel_filter(img, thr=100, ksize=3)
+    #     img = remove_n_smallest_and_add_offset(img, n=50, offset=44)
+    # if use_timepix_mask:
+    #     img = apply_timepix_cross(img)
+    # if use_us4000_mask:
+    #     img = apply_us4000_mask(img)
+    # if beamstop_mask_path:
+    #     img = apply_beamstop_mask(img, beamstop_mask_path)
+    side = False
+    if side:
+        padded, pad_off = processing.pad_for_center(img, pad_width=pad)
     else:
-        cx, cy = _find_center(padded, analysis, padded_offset=pad_off, threshold=threshold_center)
+        padded, pad_off = img, 0
+    
+
+    if manual:
+        profile = profile, _, _ = analysis.azimuth_integration_cv2(img, center=[cx, cy])
+    else:
+        cx,cy, _, _, profile = refine_center(padded if side else img, analysis, side=side, offset=pad_off, threshold_init=threshold_center)
+        # cx, cy = _find_center(padded, analysis, padded_offset=pad_off, threshold=threshold_center)
     print(cx, cy)
-    binning = img.shape[0]
-    profile = _azimuth_integrate(img, (cx, cy), analysis)
+    
+    
     slice_profile = profile[start_offset:]
     peaks_rel = _auto_select_peaks(
         slice_profile,
@@ -215,14 +217,14 @@ if __name__ == "__main__":
     selected_path = pick_tiff()
     px, diag = calibrate_gold_tiff(
         selected_path,
-        pad_for_center=256,
-        threshold_center=180,
+        pad=256,
+        threshold_center=80,
         min_pixel_rel=0,
         n_peaks=10,
         distance=5,
         prominence=20,
         use_timepix_mask=False,
-        use_us4000_mask=False,
+        use_us4000_mask=True,
         beamstop_mask_path=None,
         preprocess=True,
         interactive=True,
