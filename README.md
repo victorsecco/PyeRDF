@@ -1,5 +1,5 @@
-# PhD
-This repository basically is most of the programming code I developed during my PhD
+# PyeRDF
+This repo aims to provide a data processing framework for electron diffraction data to obtain the ePDF.
 
 
 # Installation (with Conda)
@@ -7,7 +7,7 @@ This repository basically is most of the programming code I developed during my 
 1. **Clone or download the repository**
 
    ```bash
-   git clone https://github.com/victorsecco/pyeRDF.git
+   git clone https://github.com/victorsecco/PyeRDF.git
    
 Alternatively, download the ZIP from GitHub and extract it, then cd into the extracted folder.
 
