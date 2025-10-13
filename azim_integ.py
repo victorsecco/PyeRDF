@@ -21,14 +21,14 @@ def plot_center(img, cx, cy, r, offset, analysis, side=False):
     ax[0].axis('off')
     ax[0].text(cx, cy, f'{cx:.0f}, {cy:.0f}', color='white', fontsize=13, ha='center', va='center')
 
-    nang, nrad = polar_image.shape
+    nang, nrad = masked_image.shape
     ang1, ang2 = 40, 100
-    start = int(ang1 * nang / 360)
-    end   = int(ang2 * nang / 360)
-    half  = nang // 2
-    quarter = nang // 4
+    # start = int(ang1 * nang / 360)
+    # end   = int(ang2 * nang / 360)
+    # half  = nang // 2
+    # quarter = nang // 4
 
-    ax[1].imshow(polar_image, aspect='auto', origin='upper',
+    ax[1].imshow(masked_image, aspect='auto', origin='upper',
                  extent=[0, nrad, 360, 0])  # top→0°, bottom→360°
     ax[1].set_ylabel("Azimuth (°)")
     ax[1].set_xlabel("Radius (pixels)")
@@ -58,7 +58,7 @@ def plot_center(img, cx, cy, r, offset, analysis, side=False):
             rows = np.arange(a_pix, b_pix)
         else:
             rows = np.r_[np.arange(a_pix, nang), np.arange(0, b_pix)]
-        return polar_image[rows, rmin:rmax].mean(axis=0)
+        return masked_image[rows, rmin:rmax].mean(axis=0)
 
     prof1 = avg_profile(ang1, ang2)
     prof2 = avg_profile((ang1+180)%360, (ang2+180)%360)

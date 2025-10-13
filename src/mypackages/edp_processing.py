@@ -35,9 +35,8 @@ class DataLoader:
         return np.array(img)
 
 class ImageProcessing:
-    def __init__(self, path):
-        self.path = path
-
+    def __init__(self):
+        pass
     def load_images(self, num_images, Binary = 1):
         if not os.path.isdir(self.path):
           img = Image.open(self.path)
@@ -90,6 +89,10 @@ class ImageProcessing:
 
     def remove_border(self, image, border_size):
         return image[border_size:-border_size, border_size:-border_size]
+    
+    def pad_for_center(self, image, pad_width=512, mode='constant'):
+        p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
+        return p, pad_width
 
 #Encontrar o centro com a transformada de Hough para usar como chute inicial
 class ImageAnalysis:
