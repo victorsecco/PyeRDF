@@ -9,6 +9,7 @@ import tifffile
 from mypackages.edp_processing import ImageAnalysis, ImageProcessing
 
 def plot_center(img, cx, cy, r, offset, analysis, side=False):
+
     data, polar_image, masked_image = analysis.azimuth_integration_cv2(
         img, center=[cx - offset, cy - offset]
     )
@@ -122,6 +123,7 @@ def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
             continue
 
         if choice == "ok":
+            data, _, _ = analysis.azimuth_integration_cv2(img, center=[cx - offset, cy - offset])
             return cx, cy, r, threshold, data
 
         elif choice == "c":
@@ -168,8 +170,18 @@ def azim_integ(save = False):
 
     img = tifffile.imread(file_path)
 
-    masking = False
     side = False
+
+        # Ask for optional mask image
+    mask_path = filedialog.askopenfilename(
+        title="Select mask image (optional, cancel to skip)",
+        filetypes=[("TIFF files", "*.tif *.tiff"), ("All files", "*.*")],
+    )
+    if mask_path:
+        beamstop_mask = tifffile.imread(mask_path)
+        if beamstop_mask.shape != img.shape:
+            raise ValueError("Mask and image must have the same dimensions.")
+        img[beamstop_mask == 255] = 0
 
     analysis = ImageAnalysis()
     processing = ImageProcessing()
