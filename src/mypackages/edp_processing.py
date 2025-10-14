@@ -94,6 +94,16 @@ class ImageProcessing:
         p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
         return p, pad_width
 
+    def bin_to_512(self, img):
+        h, w = img.shape
+        if (h, w) != (512, 512):
+            factor_h = h // 512
+            factor_w = w // 512
+            factor = min(factor_h, factor_w)
+            return img[:factor*512, :factor*512].reshape(512, factor, 512, factor).mean((1, 3)), factor
+        else:
+            return img
+
 #Encontrar o centro com a transformada de Hough para usar como chute inicial
 class ImageAnalysis:
     def __init__(self):

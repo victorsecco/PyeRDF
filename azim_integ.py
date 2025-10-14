@@ -8,13 +8,15 @@ from tkinter import filedialog, simpledialog, messagebox
 import tifffile
 from mypackages.edp_processing import ImageAnalysis, ImageProcessing
 
-def plot_center(img, cx, cy, r, offset, analysis, side=False):
+analysis = ImageAnalysis()
+processing = ImageProcessing()
 
-    data, polar_image, masked_image = analysis.azimuth_integration_cv2(
+def plot_center(img, cx, cy, r, offset, analysis, side=False):
+    data, _, masked_image = analysis.azimuth_integration_cv2(
         img, center=[cx - offset, cy - offset]
     )
 
-    fig, ax = plt.subplots(1, 4, figsize=(18, 5), gridspec_kw={'width_ratios': [2, 1, 1, 1]})
+    _, ax = plt.subplots(1, 4, figsize=(18, 5), gridspec_kw={'width_ratios': [2, 1, 1, 1]})
 
     ax[0].imshow(img**0.5, cmap='inferno')
     ax[0].scatter(cx, cy, s=5, color='white')
@@ -23,11 +25,7 @@ def plot_center(img, cx, cy, r, offset, analysis, side=False):
     ax[0].text(cx, cy, f'{cx:.0f}, {cy:.0f}', color='white', fontsize=13, ha='center', va='center')
 
     nang, nrad = masked_image.shape
-    ang1, ang2 = 40, 100
-    # start = int(ang1 * nang / 360)
-    # end   = int(ang2 * nang / 360)
-    # half  = nang // 2
-    # quarter = nang // 4
+    ang1, ang2 = 40, 80
 
     ax[1].imshow(masked_image, aspect='auto', origin='upper',
                  extent=[0, nrad, 360, 0])  # top→0°, bottom→360°
@@ -86,10 +84,21 @@ def plot_center(img, cx, cy, r, offset, analysis, side=False):
 
 def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
     threshold = threshold_init
-    cx, cy, r, *_ = analysis.find_center(img, r=1, R=5000, threshold=threshold, niter=10, kappa=0, anisotropic=False)
+    img_bin, f = processing.bin_to_512(img)
+    cx, cy, r, *_ = analysis.find_center(img_bin, r=1, R=5000, threshold=threshold, niter=10, kappa=0, anisotropic=False)
+
+    cx_full = int(cx * f)
+    cy_full = int(cy * f)
+
     if offset != 0:
         cx -= offset
         cy -= offset
+
+    half = 10
+    section = img[
+        cy_full - half : cy_full + half,
+        cx_full - half : cx_full + half
+    ]
 
     while True:
         try:
@@ -106,7 +115,7 @@ def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
                 continue
 
             cx, cy, r, *_ = analysis.find_center(
-                img, r=1, R=5000, threshold=threshold,
+                section, r=1, R=5000, threshold=threshold,
                 niter=10, kappa=0, anisotropic=False
             )
         data = plot_center(img, cx, cy, r, offset, analysis, side=side)
@@ -183,8 +192,6 @@ def azim_integ(save = False):
             raise ValueError("Mask and image must have the same dimensions.")
         img[beamstop_mask == 255] = 0
 
-    analysis = ImageAnalysis()
-    processing = ImageProcessing()
 
     padded = img
     if side:

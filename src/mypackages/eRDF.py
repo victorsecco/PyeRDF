@@ -133,7 +133,7 @@ class DataProcessor:
 
         # Fitting parameters
         self.C = self.iq_ref - self.N * self.fbar_sq_ref
-        self.autofit = N * self.mean_f2 + self.C
+        self.autofit = self.N * self.mean_f2 + self.C
 
         return self.N, self.C, self.autofit
     
