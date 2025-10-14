@@ -147,7 +147,7 @@ def main():
     except Exception:
         pass
 
-    dp.plot_results(fq, r_raw, Gr0=Gr_raw)
+    dp.plot_results(fq_poly, r_raw, Gr0=Gr_raw)
     plt.show(block=True)
 
     save_dir = filedialog.askdirectory(

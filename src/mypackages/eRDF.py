@@ -272,10 +272,10 @@ class DataProcessor:
         ax[0].set_title("Fitting I(Q)")
 
         # F(Q)
-        ax[1].plot(self.q, fq, label=r"$\phi(Q)$")
+        ax[1].plot(self.q, fq, label=r"F(Q)$")
         ax[1].set_xlabel(r"Q ($\AA^{-1}$)")
-        ax[1].set_ylabel(r"$\phi(Q)$")
-        ax[1].set_title(r"Calculating $\phi(Q)$")
+        ax[1].set_ylabel(r"F(Q)$")
+        ax[1].set_title(r"Calculating F(Q)$")
         ax[1].legend()
 
         # G(r)
