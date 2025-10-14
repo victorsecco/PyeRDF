@@ -129,7 +129,8 @@ class ImageAnalysis:
         else:
             return final_im, blur, edges
         
-    def azimuth_integration_cv2(self, img, center, binning):
+    def azimuth_integration_cv2(self, img, center):
+      binning = img.shape[0]
       polar_image = cv2.linearPolar(img,(int(center[0]), int(center[1])), binning, cv2.WARP_FILL_OUTLIERS)
 
       #Assigning a binary mask, the zero values will be left out

@@ -129,13 +129,13 @@ class DataProcessor:
         a6 = 2 * np.sum(self.mean_f2[interval:]) * self.fbar_sq_ref
         a7 = np.sum(wi[interval:]) * self.fbar_sq_ref ** 2
 
-        N = (a1 - a2 - a3 + a4) / (a5 - a6 + a7)
+        self.N = (a1 - a2 - a3 + a4) / (a5 - a6 + a7)
 
         # Fitting parameters
-        C = self.iq_ref - N * self.fbar_sq_ref
-        autofit = N * self.mean_f2 + C
+        self.C = self.iq_ref - self.N * self.fbar_sq_ref
+        self.autofit = N * self.mean_f2 + self.C
 
-        return N, C, autofit
+        return self.N, self.C, self.autofit
     
     def sq_fq(self, iq, damping):
         """
