@@ -18,7 +18,7 @@ Alternatively, download the ZIP from GitHub and extract it, then cd into the ext
     conda create -n epdf python=3.12.8 -y
     conda activate epdf
 
-I only tested the code in this python version. You can also just install python 3.12.8.
+I only tested the code in this python version. You can also just install the standalone Python 3.12.8.
 
 3. **Build the package**
 
@@ -32,7 +32,7 @@ This will create distribution files (.whl and .tar.gz) inside the dist/ director
 3. **Install the package**
 
     ```bash
-    pip install dist/phd-0.1.0-py3-none-any.whl
+    pip install dist\pyerdf-0.1.0-py3-none-any.whl
 
 This should install all the dependencies and finish the installation. 
 

@@ -8,8 +8,9 @@ from tkinter import filedialog, simpledialog, messagebox
 import tifffile
 from mypackages.edp_processing import ImageAnalysis, ImageProcessing
 
-analysis = ImageAnalysis()
 processing = ImageProcessing()
+analysis = ImageAnalysis()
+
 
 def plot_center(img, cx, cy, r, offset, analysis, side=False):
     data, _, masked_image = analysis.azimuth_integration_cv2(
@@ -84,21 +85,11 @@ def plot_center(img, cx, cy, r, offset, analysis, side=False):
 
 def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
     threshold = threshold_init
-    img_bin, f = processing.bin_to_512(img)
-    cx, cy, r, *_ = analysis.find_center(img_bin, r=1, R=5000, threshold=threshold, niter=10, kappa=0, anisotropic=False)
-
-    cx_full = int(cx * f)
-    cy_full = int(cy * f)
+    cx, cy, r, *_ = analysis.find_center(img, r=1, R=5000, threshold=threshold, niter=10, kappa=0, anisotropic=False)
 
     if offset != 0:
         cx -= offset
         cy -= offset
-
-    half = 10
-    section = img[
-        cy_full - half : cy_full + half,
-        cx_full - half : cx_full + half
-    ]
 
     while True:
         try:
@@ -115,7 +106,7 @@ def refine_center(img, analysis, side=False, offset=0, threshold_init=150):
                 continue
 
             cx, cy, r, *_ = analysis.find_center(
-                section, r=1, R=5000, threshold=threshold,
+                img, r=1, R=5000, threshold=threshold,
                 niter=10, kappa=0, anisotropic=False
             )
         data = plot_center(img, cx, cy, r, offset, analysis, side=side)
@@ -216,3 +207,4 @@ def azim_integ(save = False):
 
 if __name__ == "__main__":
     azim_integ(save = True)
+
