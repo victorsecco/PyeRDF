@@ -70,7 +70,6 @@ class ImageProcessing:
       else:
         raise Exception('A imagem tem'f'{image.shape} e a mascara tem 'f'{mask.shape}')
 
-#Retirar os defeitos fixos das imagens
     def fixed_defects_mask(self, image, microscope):
       if microscope.lower() in ("titan"):
         image[2140:2160, 2030:2070]=0
@@ -308,13 +307,13 @@ def highest_distance_to_border(point, image_width, image_height):
     return max_distance
 
 def peak_calibration(pixel_positions, standard = 'gold', peaks = None):
-    ds = []
+    dq = []
     if standard =='gold':  
       peaks = [2.354977, 2.039470, 1.442123, 1.229847, 1.177489, 1.019735, 0.935773, 0.912079]
 
     for i in range(len(pixel_positions)):
-        ds.append(1/(pixel_positions[i]*peaks[i])*2*math.pi)
+        dq.append(1/(pixel_positions[i]*peaks[i])*2*math.pi)
         
-    ds = np.array(ds).mean()
-    print('The calculated calibration factor ds: 'f'{ds}')
-    return ds
+    dq = np.array(dq).mean()
+    print('The calculated calibration factor dq: 'f'{dq}')
+    return dq

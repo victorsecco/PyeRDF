@@ -8,7 +8,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from tkinter import filedialog
 from pathlib import Path
-from mypackages.eRDF import DataProcessor, Gr
+from mypackages.eRDF import DataProcessor
 
 plt.ioff()
 
@@ -140,7 +140,7 @@ def main():
     y_fit = polynomial(dp.q)
     fq_poly = norm_data - y_fit
 
-    r_raw, Gr_raw = Gr(dp.q, fq_poly, rmax=rmax, dr=dr)
+    r_raw, Gr_raw = dp.Gr(fq_poly, rmax=rmax, dr=dr)
 
     try:
         root.destroy()
@@ -160,7 +160,7 @@ def main():
 
     stem = start_path.stem
     fq_path = save_path / f"fq_{stem}.csv"
-    gr_path = save_path / f"gr_{stem}.csv"
+    gr_path = save_path / f"Gr_{stem}.csv"
     iq_path = save_path / f"iq_{stem}.csv"
 
     df_fq = pd.DataFrame({"q": dp.q, "fq": fq_poly})
