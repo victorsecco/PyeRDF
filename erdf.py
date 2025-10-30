@@ -70,7 +70,7 @@ class ParameterDialog(tk.Toplevel):
         self.result = None
         self.destroy()
 
-def main():
+def main(ds = None):
     root = tk.Tk()
     root.withdraw()
     start_name = filedialog.askopenfilename(
@@ -127,8 +127,8 @@ def main():
         q0=q0
     )
 
-    dp.Elements = Elements
-    dp.Lobato_Factors()
+    
+    dp.Lobato_Factors(elements=Elements)
     dp.compute_weighted_factors()
     dp.N_and_parameters(region=0.0)
 

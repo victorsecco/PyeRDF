@@ -1,6 +1,4 @@
-import os
 import numpy as np
-from PIL import Image
 import cv2
 import pandas as pd
 import math
@@ -10,98 +8,87 @@ from scipy.signal import find_peaks
 from scipy.interpolate import interp1d
 from medpy.filter.smoothing import anisotropic_diffusion
 
-
-class DataLoader:
-    """Handles loading of .ser, .png, and .tif files."""
-
-    def __init__(self):
-        pass
-
-    def load_ser(self, file_path):
-        import hyperspy.api as hs
-        """Loads a .ser diffraction series using HyperSpy."""
-        data = hs.load(file_path, signal_type='diffraction', lazy=True)
-        num_frames = data.data.shape[0]
-        return data, num_frames
-
-    def load_png(self, file_path):
-        """Loads a .png image as numpy array (grayscale)."""
-        img = Image.open(file_path).convert("L")  # grayscale 8-bit
-        return np.array(img)
-
-    def load_tif(self, file_path):
-        """Loads a .tif or .tiff file, preserving bit depth."""
-        img = Image.open(file_path)
-        return np.array(img)
-
 class ImageProcessing:
-    def __init__(self):
+    def __init__(self, img):
+        self.img = img
         pass
-    def load_images(self, num_images, Binary = 1):
-        if not os.path.isdir(self.path):
-          img = Image.open(self.path)
-          img = np.array(img)
-          return img
-        else:
-          images_list = os.listdir(self.path)
-          images_names = [image for image in images_list if (image.lower().endswith(".tif") or image.lower().endswith(".tiff"))]
-          images_names.sort()
-          images = []
-          images_array = []
-          for filename in images_names[:num_images]:
-              img = Image.open(os.path.join(self.path, filename))
-              images.append(img)
-              if Binary == 0:
-                img[img == 255] = 1
-                img= img[:,:,0]
-              img = np.array(img)
-              images_array.append(img)
-          images_array = np.array(images_array)
-          return images_array, images_names
 
-    def load_mask(self, mask_path):
-      return np.array(Image.open(mask_path))
-
-    def subtract_mask(self, image, mask):
-      if image.shape == mask.shape:
-        image[mask==255] = 0
-        image = ma.masked_equal(image, 0)
-        return image
+    def subtract_mask(self, mask):
+      if self.img.shape == mask.shape:
+        self.img[mask==255] = 0
+        self.img = ma.masked_equal(self.img, 0)
+        return self.img
       else:
-        raise Exception('A imagem tem'f'{image.shape} e a mascara tem 'f'{mask.shape}')
+        raise Exception('A imagem tem'f'{self.img.shape} e a mascara tem 'f'{mask.shape}')
 
-    def fixed_defects_mask(self, image, microscope):
+    def fixed_defects_mask(self, microscope):
       if microscope.lower() in ("titan"):
-        image[2140:2160, 2030:2070]=0
-        image[:,4087:]=0
-        image[:,0:5]=0
-        image[4051:4053]=0
-        #image[3072:]=False
-        image = ma.masked_equal(image, 0)
-        return image
+        self.img[2140:2160, 2030:2070]=0
+        self.img[:,4087:]=0
+        self.img[:,0:5]=0
+        self.img[4051:4053]=0
+        self.img = ma.masked_equal(self.img, 0)
+        return self.img
       else:
-        image[:,:7]=0
-        image[3072:]=0
-        image[2136,1976:2225]=0
-        image = ma.masked_equal(image, 0)
-        return image
+        self.img[:,:7]=0
+        self.img[3072:]=0
+        self.img[2136,1976:2225]=0
+        self.img = ma.masked_equal(self.img, 0)
+        return self.img
 
-    def remove_border(self, image, border_size):
-        return image[border_size:-border_size, border_size:-border_size]
+    def remove_border(self, border_size):
+        return self.img[border_size:-border_size, border_size:-border_size]
     
-    def pad_for_center(self, image, pad_width=512, mode='constant'):
-        p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
+    def pad_for_center(self, pad_width=512, mode='constant'):
+        p = np.pad(self.img, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
         return p, pad_width
 
-    def bin_to_512(self, img):
-        h, w = img.shape
+    def bin_to_512(self):
+        h, w = self.img.shape
         if (h, w) != (512, 512):
             factor_h = h // 512
             factor_w = w // 512
             factor = min(factor_h, factor_w)
-            return img[:factor*512, :factor*512].reshape(512, factor, 512, factor).mean((1, 3)), factor
+            return self.img[:factor*512, :factor*512].reshape(512, factor, 512, factor).mean((1, 3))
         else:
-            return img
+            return self.img
+        
+    def pad_image_for_hough(self, image, pad_width=512, mode='constant'):
+        p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
+        return p, pad_width
+
+    def bin_by_2(self):
+        h, w = self.img.shape
+        return self.img.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
+
+    def apply_timepix_cross(self):
+        self.img[255, :] = 0
+        self.img[:, 255] = 0
+        return self.img
+
+    def apply_us4000_mask(self):
+        self.img = self.img.copy()
+        self.img[1915:,1002:1022] = 0
+        self.img[:120,1013:1030] = 0
+        return self.img
+
+    def apply_beamstop_mask(self, mask):
+        if mask.shape == self.img.shape:
+            m = mask
+        elif mask.shape[0] == 4096 and self.img.shape[0] == 2048:
+            m = bin_2d_by_2(mask)
+        else:
+            raise ValueError("Mask and image shapes incompatible.")
+        self.img[m == 255] = -10
+        return self.img
+
+    def hot_pixel_filter(self, thr=100, ksize=3):
+        src = self.img.astype(np.float32, copy=False)
+        med = cv2.medianBlur(src, ksize)
+        mask = (src - med) > thr
+        out = src.copy()
+        out[mask] = med[mask]
+        return out.astype(self.img.dtype)
 
 #Encontrar o centro com a transformada de Hough para usar como chute inicial
 class ImageAnalysis:
@@ -205,37 +192,6 @@ class ImageAnalysis:
         return math.sqrt(1/len(x) * sum((x - y)**2))
 
  
-def pad_image_for_hough(image, pad_width=512, mode='constant'):
-    p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
-    return p, pad_width
-
-def bin_2d_by_2(arr):
-    h, w = arr.shape
-    return arr.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
-
-def apply_timepix_cross(img):
-    img = img.copy()
-    img[255, :] = 0
-    img[:, 255] = 0
-    return img
-
-def apply_us4000_mask(img):
-    img = img.copy()
-    img[1915:,1002:1022] = 0
-    img[:120,1013:1030] = 0
-    return img
-
-def apply_beamstop_mask(img, mask_path):
-    mask = tifffile.imread(mask_path)
-    if mask.shape == img.shape:
-        m = mask
-    elif mask.shape[0] == 4096 and img.shape[0] == 2048:
-        m = bin_2d_by_2(mask)
-    else:
-        raise ValueError("Mask and image shapes incompatible.")
-    out = img.copy()
-    out[m == 255] = -10
-    return out
 
 def find_center_dispatch(img, padded, offset, analysis, manual, thresh = 100, c=None):
     if manual:
@@ -249,47 +205,6 @@ def find_center_dispatch(img, padded, offset, analysis, manual, thresh = 100, c=
         cx, cy, r, thre, blur, edges = analysis.find_center(img, r=1, R=5000, threshold=thresh, niter=20, kappa=100, anisotropic_diffusion=False)
     return cx, cy, r, thre, blur, edges
 
-
-def hot_pixel_filter(img, thr=100, ksize=3):
-    src = img.astype(np.float32, copy=False)
-    med = cv2.medianBlur(src, ksize)
-    mask = (src - med) > thr
-    out = src.copy()
-    out[mask] = med[mask]
-    return out.astype(img.dtype)
-
-
-def load_empad_data(file_path, num_images):
-    """
-    Load EMPAD data from a given file path, processing a specified number of images.
-    
-    Parameters:
-    - file_path: str, the path to the EMPAD raw data file.
-    - num_images: int, the number of images in the data file.
-    
-    Returns:
-    - data: numpy.ndarray, the processed data array with shape (num_images, 128, 128),
-            or None if there's a size mismatch or other loading issue.
-    """
-    pattern_size = 130 * 128 * 4  # 4 bytes per pixel, accounting for 2 metadata rows per image
-    filesize = os.path.getsize(file_path)
-    expected_size = num_images * pattern_size
-
-    # Check if the file size matches the expected size based on the number of images
-    if filesize != expected_size:
-        print("Warning: File size does not match the expected size based on the number of images.")
-        print(f"Expected {expected_size}, but got {filesize}. Please check the file path and number of images. Probably is {filesize/(130*256)}")
-        return None
-    
-    with open(file_path, "rb") as fid:
-        data = np.fromfile(fid, dtype=np.float32)
-        if len(data) == num_images * 130 * 128:
-            # Reshape and crop the data to remove metadata rows
-            data = data.reshape(num_images, 130, 128)[:, :128, :]
-            return data
-        else:
-            print("Data size does not match the expected pattern size. Please check the file or pattern_size calculation.")
-            return None
         
 def highest_distance_to_border(point, image_width, image_height):
     # Unpack the point coordinates
