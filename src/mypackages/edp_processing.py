@@ -1,12 +1,10 @@
 import numpy as np
 import cv2
-import pandas as pd
 import math
-import matplotlib.pyplot as plt
 import numpy.ma as ma
-from scipy.signal import find_peaks
 from scipy.interpolate import interp1d
 from medpy.filter.smoothing import anisotropic_diffusion
+from skimage.transform import resize
 
 class ImageProcessing:
     def __init__(self, img):
@@ -49,7 +47,7 @@ class ImageProcessing:
             factor_h = h // 512
             factor_w = w // 512
             factor = min(factor_h, factor_w)
-            return self.img[:factor*512, :factor*512].reshape(512, factor, 512, factor).mean((1, 3))
+            return self.img[:factor*512, :factor*512].reshape(512, factor, 512, factor).mean((1, 3)), factor
         else:
             return self.img
         
@@ -73,13 +71,9 @@ class ImageProcessing:
         return self.img
 
     def apply_beamstop_mask(self, mask):
-        if mask.shape == self.img.shape:
-            m = mask
-        elif mask.shape[0] == 4096 and self.img.shape[0] == 2048:
-            m = bin_2d_by_2(mask)
-        else:
-            raise ValueError("Mask and image shapes incompatible.")
-        self.img[m == 255] = -10
+        if mask.shape != self.img.shape:
+            mask = resize(mask, self.img.shape, order=0, preserve_range=True).astype(mask.dtype)
+        self.img[mask >= 255] = -10
         return self.img
 
     def hot_pixel_filter(self, thr=100, ksize=3):
@@ -89,6 +83,18 @@ class ImageProcessing:
         out = src.copy()
         out[mask] = med[mask]
         return out.astype(self.img.dtype)
+    
+    def log_intensity(self, img=None):
+        if img is None:
+            img = self.img
+
+        return np.log(img)
+
+    def sqrt_intensity(self, img=None):
+        if img is None:
+            img = self.img
+
+        return np.sqrt(img)
 
 #Encontrar o centro com a transformada de Hough para usar como chute inicial
 class ImageAnalysis:

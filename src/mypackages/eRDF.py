@@ -22,16 +22,27 @@ class DataProcessor:
 
         self.x = np.arange(self.start, self.end)
         self.iq = Iq[self.start:self.end]
-        self.q = self.q0 + self.x * self.ds * 2 * math.pi
-        self.s = self.q / (2 * math.pi)
-        self.s2 = self.s ** 2
+        self.s = self.build_s_range()
+        self.q = self.build_q_range()
         return self.x, self.iq, self.q, self.s, self.s2
+    
+    def build_q_range(self):
+        self.q = self.q0 + self.x * self.ds * 2 * math.pi
+        return self.q
 
-    def Lobato_Factors(self, *, lobato_path=None, elements=None, s2=None, x=None):
+    def build_s_range(self, ds = None, arr_size = None):
+        if hasattr(self, "ds"):
+            self.s = self.x * self.ds
+        else:
+            self.x = np.arange(0, arr_size)
+            self.s = self.x * ds
+        self.s2 = self.s ** 2
+        return self.s, self.s2
+
+    def Lobato_Factors(self, *, lobato_path=None, elements=None, s2=None):
         self.lobato = Path(self.lobato if lobato_path is None else lobato_path)
         self.Elements = self.Elements if elements is None else elements
         self.s2 = self.s2 if s2 is None else np.asarray(s2)
-        self.x = self.x if x is None else np.asarray(x)
 
         # normalize in place
         normalize_elements_inplace(self.Elements)
@@ -54,7 +65,7 @@ class DataProcessor:
                 (LF[4] * (self.s2 * LF[9] + 2) / (self.s2 * LF[9] + 1) ** 2))
             )
 
-        self.lobato_factors = Lobato_Factors.reshape(len(FACTORS), len(self.x))
+        self.lobato_factors = Lobato_Factors.reshape(len(FACTORS), len(self.s2))
         return self.lobato_factors
 
     def compute_weighted_factors(self):
