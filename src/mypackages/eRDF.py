@@ -103,11 +103,7 @@ class DataProcessor:
         self.fbar_sq = fbar ** 2                   # [Σ_i w_i f_i(Q)]^2
         self.mean_f2 = np.sum(f2_terms, axis=0)    # Σ_i w_i f_i(Q)^2
 
-        ref_idx = -1
-        self.fbar_sq_ref = self.fbar_sq[ref_idx]
-        self.iq_ref = self.iq[ref_idx]
-
-        return self.fbar_sq, self.mean_f2, self.fbar_sq_ref, self.iq_ref
+        return self.fbar_sq, self.mean_f2
 
     def N_and_parameters(self, region=0):
         """
@@ -129,6 +125,7 @@ class DataProcessor:
         autofit : array
             Fitted I(Q) curve from the model.
         """
+    
         interval = int(region * len(self.x))
         wi = np.ones_like(self.x[interval:])
 
@@ -142,6 +139,10 @@ class DataProcessor:
 
         self.N = (a1 - a2 - a3 + a4) / (a5 - a6 + a7)
 
+        ref_idx = -1
+        self.fbar_sq_ref = self.fbar_sq[ref_idx]
+        self.iq_ref = self.iq[ref_idx]
+        
         # Fitting parameters
         self.C = self.iq_ref - self.N * self.fbar_sq_ref
         self.autofit = self.N * self.mean_f2 + self.C
