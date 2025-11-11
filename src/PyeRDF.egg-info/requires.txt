@@ -1,0 +1,8 @@
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+pandas>=2.1
+tifffile>=2023.8
+opencv-python>=4.9
+medpy>=0.4.0
+imagecodecs>=2023.1
