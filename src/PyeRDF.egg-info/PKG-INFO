@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: PyeRDF
-Version: 0.1.0
+Version: 0.1.2
 Requires-Dist: numpy>=1.26
 Requires-Dist: scipy>=1.11
 Requires-Dist: matplotlib>=3.8

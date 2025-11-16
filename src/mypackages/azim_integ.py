@@ -9,8 +9,8 @@ import tifffile
 from control_state import control
 from mypackages.edp_processing import ImageAnalysis, ImageProcessing
 
-processing = ImageProcessing()
-analysis = ImageAnalysis()
+# processing = ImageProcessing()
+# analysis = ImageAnalysis()
 
 
 def plot_center(img, cx, cy, r, offset, analysis, side=False):
