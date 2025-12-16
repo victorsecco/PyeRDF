@@ -37,9 +37,33 @@ class ImageProcessing:
     def remove_border(self, border_size):
         return self.img[border_size:-border_size, border_size:-border_size]
     
-    def pad_for_center(self, pad_width=512, mode='constant'):
-        p = np.pad(self.img, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
-        return p, pad_width
+    def pad_for_center(self, pad_width=512, mode='constant', axis=None, side=None):
+        h, w = pad_width, pad_width
+
+        if axis is None and side is None:
+            pad = ((h, h), (w, w))
+
+        elif axis == 0:  # y axis (rows)
+            if side == 'left':
+                pad = ((h, 0), (0, 0))
+            elif side == 'right':
+                pad = ((0, h), (0, 0))
+            else:  # both
+                pad = ((h, h), (0, 0))
+
+        elif axis == 1:  # x axis (columns)
+            if side == 'left':
+                pad = ((0, 0), (h, 0))
+            elif side == 'right':
+                pad = ((0, 0), (0, h))
+            else:  # both
+                pad = ((0, 0), (h, h))
+
+        else:
+            raise ValueError("axis must be 0, 1, or None")
+
+        p = np.pad(self.img, pad, mode=mode)
+        return p, pad
 
     def bin_to_512(self):
         h, w = self.img.shape
@@ -71,9 +95,18 @@ class ImageProcessing:
         return self.img
 
     def apply_beamstop_mask(self, mask):
-        if mask.shape != self.img.shape:
-            mask = resize(mask, self.img.shape, order=0, preserve_range=True).astype(mask.dtype)
-        self.img[mask >= 255] = -10
+        if isinstance(mask, np.ndarray):
+            H, W = self.img.shape      # 2048, 1024
+            h, w = mask.shape  # 2048, 2048
+
+            if (h, w) != (H, W):
+                if h != H or w < W:
+                    raise ValueError("Mask must match image height and have width ≥ image width.")
+
+                # keep columns 1024:2048
+                mask = mask[:, w-W:w]   # becomes [:, 1024:2048]
+
+            self.img[mask == 255] = 0
         return self.img
 
     def hot_pixel_filter(self, thr=100, ksize=3):
@@ -83,6 +116,23 @@ class ImageProcessing:
         out = src.copy()
         out[mask] = med[mask]
         return out.astype(self.img.dtype)
+    
+    def hot_pixel_filter_sigma(self, ksize=5, sigma=3):
+        src = self.img.astype(np.float32, copy=False)
+
+        from scipy.ndimage import uniform_filter
+
+        mean = uniform_filter(src, size=ksize, mode='reflect')
+        mean_sq = uniform_filter(src * src, size=ksize, mode='reflect')
+        var = mean_sq - mean * mean
+        std = np.sqrt(np.maximum(var, 0))
+
+        mask = src > (mean + sigma * std)
+
+        out = src.copy()
+        out[mask] = mean[mask]
+        return out.astype(self.img.dtype)
+
     
     def log_intensity(self, img=None):
         if img is None:
@@ -137,6 +187,7 @@ class ImageAnalysis:
 
       #Assigning a binary mask, the zero values will be left out
       mask = np.where(polar_image > 0, 1, 0).astype(np.uint8)
+      mask_or = np.where(img > 0, 1, 0).astype(np.uint8)
 
       #Creating a copy and using the mask to set the values that will be cropped to the max value of the image 
       integrated_img_processed = polar_image.copy()
@@ -144,6 +195,10 @@ class ImageAnalysis:
 
       #Here is where the masking really happens, the max values are excluded
       masked_image = ma.masked_equal(integrated_img_processed, polar_image.max())
+
+      masked_image_or = img.copy()
+      masked_image_or[mask_or == 0] = img.max()
+      masked_image_or = ma.masked_equal(masked_image_or, img.max())
 
       #The polar transform gives 4096 image, here I make an interpolation to the real max distance to the border
       original_data = masked_image.mean(axis = 0)
@@ -157,7 +212,7 @@ class ImageAnalysis:
       #Final data containing the azimuthal average interpolated to the desired inverval
       new_data = interp_func(new_indices)
 
-      return new_data, polar_image, masked_image
+      return new_data, masked_image_or, masked_image
 
     def optimize_center(self, image, initial_center_x, initial_center_y, azimuth_ranges, max_iterations):
       center_x, center_y = initial_center_x, initial_center_y

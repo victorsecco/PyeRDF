@@ -22,13 +22,12 @@ class DataProcessor:
 
         self.x = np.arange(self.start, self.end)
         self.iq = Iq[self.start:self.end]
-        self.s = self.build_s_range()
-        self.q = self.build_q_range()
+        self.build_s_range()
+        self.build_q_range()
         return self.x, self.iq, self.q, self.s, self.s2
     
     def build_q_range(self):
         self.q = self.q0 + self.x * self.ds * 2 * math.pi
-        return self.q
 
     def build_s_range(self, ds = None, arr_size = None):
         if hasattr(self, "ds"):
@@ -37,7 +36,6 @@ class DataProcessor:
             self.x = np.arange(0, arr_size)
             self.s = self.x * ds
         self.s2 = self.s ** 2
-        return self.s, self.s2
 
     def Lobato_Factors(self, *, lobato_path=None, elements=None, s2=None):
         self.lobato = Path(self.lobato if lobato_path is None else lobato_path)
@@ -90,18 +88,22 @@ class DataProcessor:
         f_terms = []
         f2_terms = []
 
-        for idx, elem in enumerate(self.Elements):
-            w = self.Elements[elem][2]
-            fi = self.lobato_factors[idx]          # f_i(Q)
-            f_terms.append(w * fi)                 # w_i f_i(Q)
-            f2_terms.append(w * (fi ** 2))         # w_i f_i(Q)^2
+        self.w = np.array([self.Elements[elem][2] for elem in self.Elements], float)
+        f = np.asarray(self.lobato_factors, float)  # shape (n_elem, n_Q)
 
-        f_terms = np.asarray(f_terms)
-        f2_terms = np.asarray(f2_terms)
+        f_terms = self.w[:, None] * f
+        f2_terms = self.w[:, None] * (f ** 2)
+
 
         fbar = np.sum(f_terms, axis=0)             # Σ_i w_i f_i(Q)
         self.fbar_sq = fbar ** 2                   # [Σ_i w_i f_i(Q)]^2
         self.mean_f2 = np.sum(f2_terms, axis=0)    # Σ_i w_i f_i(Q)^2
+
+        ref_idx = -1
+        self.fbar_sq_ref = self.fbar_sq[ref_idx]
+        self.mean_f2_ref = self.mean_f2[ref_idx]
+
+        self.iq_ref = self.iq[ref_idx]
 
         return self.fbar_sq, self.mean_f2
 
@@ -139,16 +141,23 @@ class DataProcessor:
 
         self.N = (a1 - a2 - a3 + a4) / (a5 - a6 + a7)
 
-        ref_idx = -1
-        self.fbar_sq_ref = self.fbar_sq[ref_idx]
-        self.iq_ref = self.iq[ref_idx]
+
         
         # Fitting parameters
-        self.C = self.iq_ref - self.N * self.fbar_sq_ref
+        self.C = self.iq_ref - self.N * self.mean_f2_ref
         self.autofit = self.N * self.mean_f2 + self.C
 
         return self.N, self.C, self.autofit
     
+    def diffuse_sc(self, B_list):
+
+        B_arr = np.asarray(B_list, dtype=float)
+        u_arr = B_arr / (8 * np.pi**2)
+        wu_arr = u_arr*self.w
+        u2 = wu_arr.mean()
+        self.diffuse_scat = np.exp(-(u2 * self.q**2))*(self.mean_f2/self.fbar_sq_ref)
+
+
     def sq_fq(self, iq, damping):
         """
         Compute reduced structure function S(Q) and total scattering function F(Q) from intensities.

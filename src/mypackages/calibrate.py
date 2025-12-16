@@ -5,6 +5,9 @@ from scipy.signal import find_peaks
 from edp_processing import ImageAnalysis, ImageProcessing, peak_calibration
 from azim_integ import refine_center
 from control_state import control
+from plot_style import set_plot_style
+
+set_plot_style()
 
 
 def _auto_select_peaks(profile_slice, n_peaks=4, distance=10, height=None, prominence=50, min_pixel_rel=0):
@@ -30,21 +33,35 @@ def _extract_pixel_size(calib_result):
     raise ValueError("Calibration result missing pixel size.")
 
 def _plot_profile_with_peaks(profile_slice, peaks_rel, x_start=0, title=None):
-    x = np.arange(x_start, x_start + len(profile_slice))
-    fig, ax = plt.subplots(figsize=(10,4))
-    ax.plot(x, profile_slice, lw=1)
+
+    lo, hi = 0, 300
+    profile_slice = profile_slice[lo:hi]
+    x = np.arange(x_start + lo, x_start + lo + len(profile_slice))
+
+    peaks_rel = [p - lo for p in peaks_rel if lo <= p < hi]
+
+    fig, ax = plt.subplots(figsize=(7,10))
+    ax.plot(x, profile_slice, lw=2)
+
     if len(peaks_rel):
-        peaks_abs = x_start + peaks_rel
-        ax.scatter(peaks_abs, profile_slice[peaks_rel], s=32)
+        peaks_abs = x_start + lo + np.array(peaks_rel)
+        ax.scatter(peaks_abs, profile_slice[peaks_rel], s=32, color="red")
         for i, (p_abs, p_rel) in enumerate(zip(peaks_abs, peaks_rel)):
-            ax.text(int(p_abs), float(profile_slice[p_rel]), f"{i}", ha="center", va="bottom", fontsize=9)
-        ax.vlines(peaks_abs, 0, profile_slice[peaks_rel], linestyles="dashed", linewidth=0.8)
-    ax.set_xlabel("pixel radius (absolute)")
-    ax.set_ylabel("intensity")
+            ax.text(int(p_abs), float(profile_slice[p_rel])+100, f"{i}", 
+                    ha="center", va="bottom", fontsize=12)
+        ax.vlines(peaks_abs, 0, profile_slice[peaks_rel],
+                  linestyles="dashed", linewidth=0.8, color="red")
+
+    ax.set_xlabel("pixel radius", fontsize=25)
+    ax.set_ylabel("intensity", fontsize=25)
+    ax.tick_params(axis='both', labelsize=22)
+
     if title:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=25)
+
     fig.tight_layout()
     return fig, ax
+
 
 def _prompt_subset(peaks_rel, profile_slice, default_n, start_offset):
     print("Found peaks (ordered by absolute pixel):")

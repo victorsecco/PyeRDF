@@ -34,3 +34,14 @@ def lorentzian_height(x, x0, height, gam):
 
 def lorentzian_area(x, x0, area, gam):
     return (area / np.pi) * (gam / ((x - x0)**2 + gam**2))
+
+
+def electron_wavelength_angstrom(kV):
+    e = 1.602176634e-19
+    m0 = 9.10938356e-31
+    c = 299792458
+    h = 6.62607015e-34
+
+    V = kV * 1e3
+    lam = h / np.sqrt(2*m0*e*V*(1 + (e*V)/(2*m0*c**2)))
+    return lam * 1e10  # in Å
