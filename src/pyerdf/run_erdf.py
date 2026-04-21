@@ -74,7 +74,7 @@ class ParameterDialog(tk.Toplevel):
         self.result = None
         self.destroy()
 
-def run_erdf(ds = None):
+def main(ds = None):
     root = tk.Tk()
     root.withdraw()
 
@@ -195,4 +195,4 @@ def run_erdf(ds = None):
     print(f"Saved {fq_path}, {gr_path}, {iq_path}")
 
 if __name__ == "__main__":
-    run_erdf()
+    main()

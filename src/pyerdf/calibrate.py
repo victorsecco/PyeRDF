@@ -176,7 +176,7 @@ def prepend_csv_row(csv_path, row):
         f.write(",".join(map(str, row)) + "\n")
         f.writelines(old_rows)
 
-if __name__ == "__main__":
+def main():
     px, diag = calibrate_gold_tiff(
         pad=256,
         threshold_center=80,
@@ -197,5 +197,10 @@ if __name__ == "__main__":
     iq_path = control.csv_path
     prepend_csv_row(iq_path, [px])
     print(f"Calibration value {px} prepended to {iq_path}")
+
+
+if __name__ == "__main__":
+    main()
+
 
 

@@ -4,7 +4,6 @@ import math
 import numpy.ma as ma
 from scipy.interpolate import interp1d
 from medpy.filter.smoothing import anisotropic_diffusion
-from skimage.transform import resize
 
 class ImageProcessing:
     def __init__(self, img = None):
