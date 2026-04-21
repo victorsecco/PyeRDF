@@ -41,7 +41,7 @@ def make_sections(img, cx, cy, r, offset, analysis, side=False):
 
     spans = span_deg(ang1, ang2)
 
-    rmin, rmax = 200, 600
+    rmin, rmax = 100, 500
     rmin = max(0, rmin)
     rmax = min(nrad, rmax)
 
@@ -223,7 +223,7 @@ def main(save=False):
 
     control.load_tif_file()
     img = control.img
-    file_path = control.img_path
+    file_path = control.img_paths[0]
 
     control.img = False
 
@@ -271,7 +271,7 @@ def main(save=False):
         )
 
     else:
-        threshold0 = 80 if side else 150
+        threshold0 = 150 if side else 200
         refine_center(
             padded if side else img,
             analysis,

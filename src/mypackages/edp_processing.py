@@ -7,9 +7,15 @@ from medpy.filter.smoothing import anisotropic_diffusion
 from skimage.transform import resize
 
 class ImageProcessing:
-    def __init__(self, img):
+    def __init__(self, img = None):
+        if len(img.shape) > 2:
+            img = self.sum_stack(img)
+            print(img.shape)
         self.img = img
         pass
+
+    def sum_stack(self, img):
+        return img.sum(axis = 0)
 
     def subtract_mask(self, mask):
       if self.img.shape == mask.shape:
@@ -79,9 +85,9 @@ class ImageProcessing:
         p = np.pad(image, ((pad_width, pad_width), (pad_width, pad_width)), mode=mode)
         return p, pad_width
 
-    def bin_by_2(self):
+    def bin_image(self, bin = 2):
         h, w = self.img.shape
-        return self.img.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
+        return self.img.reshape(h // bin, bin, w // bin, bin).mean(axis=(1, 3))
 
     def apply_timepix_cross(self):
         self.img[255, :] = 0

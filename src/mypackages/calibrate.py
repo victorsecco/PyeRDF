@@ -34,7 +34,7 @@ def _extract_pixel_size(calib_result):
 
 def _plot_profile_with_peaks(profile_slice, peaks_rel, x_start=0, title=None):
 
-    lo, hi = 0, 300
+    lo, hi = 0, 3000
     profile_slice = profile_slice[lo:hi]
     x = np.arange(x_start + lo, x_start + lo + len(profile_slice))
 
@@ -197,3 +197,5 @@ if __name__ == "__main__":
     iq_path = control.csv_path
     prepend_csv_row(iq_path, [px])
     print(f"Calibration value {px} prepended to {iq_path}")
+
+
