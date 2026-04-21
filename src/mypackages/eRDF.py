@@ -7,11 +7,14 @@ from scipy.optimize import minimize
 from pathlib import Path
 
 class DataProcessor:
-    def __init__(self, lobato_path = False):
+    def __init__(self, lobato_path = False, it_path = False):
   
         #path to electron scattering factors table
         default_lobato_path = Path(__file__).parent / "data" / "Lobato_2014.txt"
+        default_it_path = Path(__file__).parent / "data" / "IT_electron_form_factors.txt"
+
         self.lobato = Path(lobato_path) if lobato_path else default_lobato_path
+        self.it_path = Path(it_path) if it_path else default_it_path
 
     def load_and_process_data(self, data=None, *, start=None, end=None, ds=None, q0=None):
         Iq = np.array(self.data if data is None else data)
@@ -30,8 +33,8 @@ class DataProcessor:
         self.q = self.q0 + self.x * self.ds * 2 * math.pi
 
     def build_s_range(self, ds = None, arr_size = None):
-        if hasattr(self, "ds"):
-            self.s = self.x * self.ds
+        if hasattr(self, "ds") and hasattr(self, "x"):
+            self.s = self.x * self.ds + self.q0 /(2 * math.pi)
         else:
             self.x = np.arange(0, arr_size)
             self.s = self.x * ds
@@ -43,7 +46,6 @@ class DataProcessor:
         self.s2 = self.s2 if s2 is None else np.asarray(s2)
 
         # normalize in place
-        normalize_elements_inplace(self.Elements)
 
         FACTORS = []
         Lobato_Factors = np.empty(shape=(0))
@@ -65,47 +67,79 @@ class DataProcessor:
 
         self.lobato_factors = Lobato_Factors.reshape(len(FACTORS), len(self.s2))
         return self.lobato_factors
+    
+    def it_factors(self, *, it_path = None, elements = None, s2 = None):
 
-    def compute_weighted_factors(self):
+        self.it_path = Path(self.it_path if it_path is None else it_path)
+        self.Elements = self.Elements if elements is None else elements
+        self.s2 = self.s2 if s2 is None else np.asarray(s2)
+
+        df = pd.read_csv(self.it_path, sep = r"\t", engine = "python")
+        df = df.replace('\u2003', '', regex=True)
+        df.index = df.iloc[:,0]
+        df.drop(columns=['Element '], inplace=True)
+        df = df.map(lambda x: float(x.strip()) if isinstance(x, str) else x)
+        self.df = df
+
+        a_coefficients = {}
+        b_coefficients = {}
+
+        for element in self.Elements.keys():
+            b_coefficients[element] = df.loc[element][1::2].values
+            a_coefficients[element] = df.loc[element][0::2].values
+
+        it_factors = np.empty((len(self.Elements), len(self.s2)))
+
+        for i, element in enumerate(self.Elements.keys()):
+            it_factors[i] = (
+            a_coefficients[element][0] * np.exp(-b_coefficients[element][0] * (self.s2/4)) +
+            a_coefficients[element][1] * np.exp(-b_coefficients[element][1] * (self.s2/4)) +
+            a_coefficients[element][2] * np.exp(-b_coefficients[element][2] * (self.s2/4)) +
+            a_coefficients[element][3] * np.exp(-b_coefficients[element][3] * (self.s2/4)) +
+            a_coefficients[element][4] * np.exp(-b_coefficients[element][4] * (self.s2/4))
+        )
+
+        self.it_factors = it_factors
+        return self.it_factors
+
+    def compute_weighted_factors(self, scattering_factors = "lobato"):
         """
         Compute weighted scattering-factor moments over Q.
 
         Attributes set
         --------------
-        self.fbar_sq : array
+        self.f2_mean : array
             [Σ_i w_i f_i(Q)]^2 — square of the weighted-average scattering factor.
         self.mean_f2 : array
-            Σ_i w_i [f_i(Q)]^2 — weighted average of squared scattering factors.
-        self.fbar_sq_ref : float
-            fbar_sq at the reference index (last point of the processed range).
+            Σ_i w_i [f_i(Q)]^2 — weighted-average of squared scattering factors.
+        self.f2_mean_ref : float
+            f2_mean at the reference index (last point of the processed range).
         self.iq_ref : float
             I(Q) at the same reference index.
 
         Returns
         -------
-        fbar_sq, mean_f2, fbar_sq_ref, iq_ref
+        f2_mean, mean_f2, f2_mean_ref, iq_ref
         """
         f_terms = []
         f2_terms = []
 
+        normalize_elements_inplace(self.Elements)
         self.w = np.array([self.Elements[elem][2] for elem in self.Elements], float)
-        f = np.asarray(self.lobato_factors, float)  # shape (n_elem, n_Q)
+        if scattering_factors.lower() == "lobato":
+            f = np.asarray(self.lobato_factors, float)  # shape (n_elem, n_Q)
+        elif scattering_factors.lower() == "it":
+            f = np.asarray(self.it_factors, float)  # shape (n_elem, n_Q)
 
         f_terms = self.w[:, None] * f
         f2_terms = self.w[:, None] * (f ** 2)
 
 
         fbar = np.sum(f_terms, axis=0)             # Σ_i w_i f_i(Q)
-        self.fbar_sq = fbar ** 2                   # [Σ_i w_i f_i(Q)]^2
+        self.f2_mean = fbar ** 2                   # [Σ_i w_i f_i(Q)]^2
         self.mean_f2 = np.sum(f2_terms, axis=0)    # Σ_i w_i f_i(Q)^2
 
-        ref_idx = -1
-        self.fbar_sq_ref = self.fbar_sq[ref_idx]
-        self.mean_f2_ref = self.mean_f2[ref_idx]
-
-        self.iq_ref = self.iq[ref_idx]
-
-        return self.fbar_sq, self.mean_f2
+        return self.f2_mean, self.mean_f2
 
     def N_and_parameters(self, region=0):
         """
@@ -127,17 +161,22 @@ class DataProcessor:
         autofit : array
             Fitted I(Q) curve from the model.
         """
+        ref_idx = -1
+        self.f2_mean_ref = self.f2_mean[ref_idx]
+        self.mean_f2_ref = self.mean_f2[ref_idx]
+
+        self.iq_ref = self.iq[ref_idx]
     
         interval = int(region * len(self.x))
         wi = np.ones_like(self.x[interval:])
 
         a1 = np.sum(self.mean_f2[interval:] * self.iq[interval:])
-        a2 = np.sum(self.iq[interval:] * self.fbar_sq_ref)
+        a2 = np.sum(self.iq[interval:] * self.f2_mean_ref)
         a3 = np.sum(self.mean_f2[interval:] * self.iq_ref)
-        a4 = np.sum(wi[interval:]) * self.fbar_sq_ref * self.iq_ref
+        a4 = np.sum(wi[interval:]) * self.f2_mean_ref * self.iq_ref
         a5 = np.sum(self.mean_f2[interval:] ** 2)
-        a6 = 2 * np.sum(self.mean_f2[interval:]) * self.fbar_sq_ref
-        a7 = np.sum(wi[interval:]) * self.fbar_sq_ref ** 2
+        a6 = 2 * np.sum(self.mean_f2[interval:]) * self.f2_mean_ref
+        a7 = np.sum(wi[interval:]) * self.f2_mean_ref ** 2
 
         self.N = (a1 - a2 - a3 + a4) / (a5 - a6 + a7)
 
@@ -155,7 +194,7 @@ class DataProcessor:
         u_arr = B_arr / (8 * np.pi**2)
         wu_arr = u_arr*self.w
         u2 = wu_arr.mean()
-        self.diffuse_scat = np.exp(-(u2 * self.q**2))*(self.mean_f2/self.fbar_sq_ref)
+        self.diffuse_scat = np.exp(-(u2 * self.q**2))*(self.mean_f2/self.f2_mean_ref)
 
 
     def sq_fq(self, iq, damping):
@@ -184,18 +223,20 @@ class DataProcessor:
             Total scattering function F(Q).
         """
         numerator = iq - self.autofit
-        self.sq = (numerator / (self.N * self.fbar_sq)) + 1
-        self.fq = (numerator * self.s / (self.N * self.fbar_sq)) * np.exp(-self.s2 * damping)
+        self.sq = (numerator / (self.N * self.f2_mean)) + 1
+        self.fq = (numerator * self.s / (self.N * self.f2_mean)) * np.exp(-self.s2 * damping)
 
         return self.sq, self.fq
     
     def Gr(self, fq, rmax, dr):
         Gr = []
         r = np.arange(0, rmax, dr)
-
+        end = len(fq)
+        q = self.q[:end]
+        
         for r_step in r:
-            integrand = 8 * math.pi * fq * np.sin(self.q * r_step)
-            Gr.append(np.trapezoid(integrand, self.q/(2* np.pi)))
+            integrand = 8 * math.pi * fq * np.sin(q * r_step)
+            Gr.append(np.trapezoid(integrand, q/(2* np.pi)))
         
         r = np.array(r, dtype=np.float64)
         Gr = np.array(Gr, dtype=np.float64)
@@ -278,7 +319,7 @@ class DataProcessor:
         iq = iq + self.autofit
         return iq
 
-    def plot_results(self, fq, r, Gr0):
+    def plot_results(self, q, fq, r, Gr0):
         plt.ion()  # interactive mode ON
         plt.close('all')  # close any previous figures
 
@@ -293,7 +334,7 @@ class DataProcessor:
         ax[0].set_title("Fitting I(Q)")
 
         # F(Q)
-        ax[1].plot(self.q, fq, label=r"F(Q)$")
+        ax[1].plot(q, fq, label=r"F(Q)$")
         ax[1].set_xlabel(r"Q ($\AA^{-1}$)")
         ax[1].set_ylabel(r"F(Q)$")
         ax[1].set_title(r"Calculating F(Q)$")

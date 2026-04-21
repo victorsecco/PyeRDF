@@ -27,12 +27,13 @@ class ParameterDialog(tk.Toplevel):
             "degree": tk.StringVar(value=str(defaults["degree"])),
             "rmax": tk.StringVar(value=str(defaults["rmax"])),
             "dr": tk.StringVar(value=str(defaults["dr"])),
-            "elements": tk.StringVar(value=str(defaults["elements"]))
+            "elements": tk.StringVar(value=str(defaults["elements"])),
+            "damping": tk.StringVar(value=str(defaults["damping"]))
         }
 
         row = 0
         for label, key in [("q0", "q0"), ("qmin", "qmin"), ("qmax", "qmax"), ("degree", "degree"),
-                           ("rmax", "rmax"), ("dr", "dr")]:
+                        ("rmax", "rmax"), ("dr", "dr"), ("damping", "damping")]:
             tk.Label(self, text=label).grid(row=row, column=0, padx=8, pady=6, sticky="e")
             tk.Entry(self, textvariable=self.vars[key], width=18).grid(row=row, column=1, padx=8, pady=6, sticky="w")
             row += 1
@@ -59,19 +60,21 @@ class ParameterDialog(tk.Toplevel):
             rmax = float(self.vars["rmax"].get())
             dr = float(self.vars["dr"].get())
             elements = ast.literal_eval(self.vars["elements"].get())
+            damping = float(self.vars["damping"].get())
             if not isinstance(elements, dict):
                 raise ValueError
         except Exception:
             tk.messagebox.showerror("Error", "Invalid parameter value.")
             return
-        self.result = dict(q0=q0, qmin=qmin, qmax=qmax, degree=degree, rmax=rmax, dr=dr, elements=elements)
+        self.result = dict(q0=q0, qmin=qmin, qmax=qmax, degree=degree, rmax=rmax, dr=dr,
+                   damping=damping, elements=elements)
         self.destroy()
 
     def on_cancel(self):
         self.result = None
         self.destroy()
 
-def main(ds = None):
+def run_erdf(ds = None):
     root = tk.Tk()
     root.withdraw()
 
@@ -79,14 +82,16 @@ def main(ds = None):
     start_path = control.csv_path
 
     defaults = {
-        "q0": 0.0,
-        "qmin": 1.0,
+        "q0": 0,
+        "qmin": 1,
         "qmax": 18.0,
         "degree": 8,
         "rmax": 100.0,
         "dr": 0.01,
-        "elements": {"Au": [79, 1]}
+        "damping": 0.0,
+        "elements": {'Fe': [26, 3], 'O': [8, 4]} #{'Au': [79, 1],} 
     }
+
     dlg = ParameterDialog(root, defaults)
     if dlg.result is None:
         raise RuntimeError("Cancelled.")
@@ -98,9 +103,12 @@ def main(ds = None):
     rmax = dlg.result["rmax"]
     dr = dlg.result["dr"]
     Elements = dlg.result["elements"]
+    damping = dlg.result["damping"]
+
 
     data = control.data
     ds = control.ds
+    Elements
 
     try:
         start = int((qmin - q0) / (ds * 2 * math.pi))
@@ -125,22 +133,33 @@ def main(ds = None):
     dp.compute_weighted_factors()
     dp.N_and_parameters(region=0.0)
 
-    _, fq = dp.sq_fq(iq, damping=0.0)
+    sq, fq = dp.sq_fq(iq, damping=damping)
 
-    norm_data = (dp.iq / (dp.N * dp.fbar_sq)) * dp.q
-    coefficients = np.polyfit(dp.q, norm_data, degree)
-    polynomial = np.poly1d(coefficients)
-    y_fit = polynomial(dp.q)
-    fq_poly = norm_data - y_fit
+    # CASE SWITCH: direct fq vs polynomial background fit
+    if degree > 0:
+        norm_data = (dp.iq / (dp.N * dp.f2_mean)) * dp.q
+        coefficients = np.polyfit(dp.q, norm_data, degree)
+        polynomial = np.poly1d(coefficients)
+        y_fit = polynomial(dp.q)
+        fq_poly = norm_data - y_fit
+        fq_used = fq_poly
+    else:
+        fq_used = fq
 
-    r_raw, Gr_raw = dp.Gr(fq_poly, rmax=rmax, dr=dr)
+    weights = 1/dp.autofit
+    weights = weights/weights.max()
+
+    end = int((q[-1]-0) / (ds * 2 * math.pi))
+    fq_used = fq_used[:end]
+
+    r_raw, Gr_raw = dp.Gr(fq_used, rmax=rmax, dr=dr)
 
     try:
         root.destroy()
     except Exception:
         pass
-
-    dp.plot_results(fq_poly, r_raw, Gr0=Gr_raw)
+    print(dp.C)
+    dp.plot_results(q[:end], sq, r_raw, Gr0=Gr_raw)
     plt.show(block=True)
 
     save_dir = filedialog.askdirectory(
@@ -156,9 +175,10 @@ def main(ds = None):
     gr_path = save_path / f"Gr_{stem}.csv"
     iq_path = save_path / f"iq_{stem}.csv"
 
-    df_fq = pd.DataFrame({"q": dp.q, "fq": fq_poly})
+
+    df_fq = pd.DataFrame({"q": dp.q, "fq": fq_used})
     df_gr = pd.DataFrame({"r": r_raw, "Gr": Gr_raw})
-    df_iq = pd.DataFrame({"q": dp.q, "iq": dp.iq})
+    df_iq = pd.DataFrame({"q": dp.q, "iq": dp.iq, "weight": weights})
 
     with fq_path.open("w", newline="") as f:
         f.write(f"# source={start_path.name}\n")
@@ -175,4 +195,4 @@ def main(ds = None):
     print(f"Saved {fq_path}, {gr_path}, {iq_path}")
 
 if __name__ == "__main__":
-    main()
+    run_erdf()
