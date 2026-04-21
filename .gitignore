@@ -2,3 +2,5 @@
 data/
 notebooks/data/
 EXP2PDF/
+
+src/pyerdf/gui.py

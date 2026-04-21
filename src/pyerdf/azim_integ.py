@@ -229,7 +229,7 @@ def main(save=False):
 
     control.load_tif_file(
         passing=True,
-        initial_dir=r"C:\Users\seccolev\PyeRDF\PyeRDF\src\mypackages\data\masks"
+        initial_dir=r"C:\Users\seccolev\PyeRDF\PyeRDF\src\pyerdf\data\masks"
     )
     beamstop_mask = control.img
 
