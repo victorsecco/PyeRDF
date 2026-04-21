@@ -214,9 +214,10 @@ def refine_center(img, analysis = analysis, side=False, offset=0, threshold_init
             messagebox.showinfo("Info", "Valid options: ok | c | t | cancel")    
 
 
-def main(save=True):
-    root = tk.Tk()
-    root.withdraw()
+def main(master=None, save=True):
+    root = master if master is not None else tk.Tk()
+    if master is None:
+        root.withdraw()
 
     side = False
     manual = False  

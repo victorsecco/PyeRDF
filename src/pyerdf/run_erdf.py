@@ -21,14 +21,14 @@ class ParameterDialog(tk.Toplevel):
         self.result = None
 
         self.vars = {
-            "q0": tk.StringVar(value=str(defaults["q0"])),
-            "qmin": tk.StringVar(value=str(defaults["qmin"])),
-            "qmax": tk.StringVar(value=str(defaults["qmax"])),
-            "degree": tk.StringVar(value=str(defaults["degree"])),
-            "rmax": tk.StringVar(value=str(defaults["rmax"])),
-            "dr": tk.StringVar(value=str(defaults["dr"])),
-            "elements": tk.StringVar(value=str(defaults["elements"])),
-            "damping": tk.StringVar(value=str(defaults["damping"]))
+            "q0": tk.StringVar(master=self, value=str(defaults["q0"])),
+            "qmin": tk.StringVar(master=self, value=str(defaults["qmin"])),
+            "qmax": tk.StringVar(master=self, value=str(defaults["qmax"])),
+            "degree": tk.StringVar(master=self, value=str(defaults["degree"])),
+            "rmax": tk.StringVar(master=self, value=str(defaults["rmax"])),
+            "dr": tk.StringVar(master=self, value=str(defaults["dr"])),
+            "elements": tk.StringVar(master=self, value=str(defaults["elements"])),
+            "damping": tk.StringVar(master=self, value=str(defaults["damping"]))
         }
 
         row = 0
@@ -74,9 +74,10 @@ class ParameterDialog(tk.Toplevel):
         self.result = None
         self.destroy()
 
-def main(ds = None):
-    root = tk.Tk()
-    root.withdraw()
+def main(master=None, ds=None):
+    root = master if master is not None else tk.Tk()
+    if master is None:
+        root.withdraw()
 
     control.load_csv_file(ds_from_file=True)
     start_path = control.csv_path
@@ -159,7 +160,7 @@ def main(ds = None):
     except Exception:
         pass
     print(dp.C)
-    dp.plot_results(q[:end], sq, r_raw, Gr0=Gr_raw)
+    dp.plot_results(q[:end], fq_used, r_raw, Gr0=Gr_raw)
     plt.show(block=True)
 
     save_dir = filedialog.askdirectory(
