@@ -50,19 +50,20 @@ class Controller:
             self.menu_frame.show_img_inputs()
 
 
-    def load_tif_file(self, passing=None):
-        self.img_path = None
-        self.img_path = filedialog.askopenfilename(
-            filetypes=[("TIFF files", "*.tif *.tiff")]
+    def load_tif_file(self, passing=None, initial_dir = None):
+        self.img_paths = None
+        self.img_paths = filedialog.askopenfilenames(
+            filetypes=[("TIFF files", "*.tif *.tiff")],
+            initialdir=initial_dir
         )
 
-        if not self.img_path:
+        if not self.img_paths:
             if passing:
                 return  # silently skip
             else:
                 raise RuntimeError("No TIFF file selected.")
         
-        self.img = self.dl.load_tif(self.img_path)
+        self.img = self.dl.load_tif(self.img_paths)
 
         if self.viewer:
             self.viewer.update_img()
@@ -116,11 +117,11 @@ class Controller:
         if self.menu_frame:
             self.menu_frame.show_csv_inputs()
 
-    def build_element_dict(self, elements, fractions):       
+    def build_element_dict(self, elements, fractions):
         element_dict = {}
         for i, (sym, num) in elements.items():
             if i <= len(fractions):
-                element_dict[sym] = [num, fractions[i - 1]]
+                element_dict[sym] = [num, fractions[i-3].get()]
         self.element_dict = element_dict
     
     def calibrate_pattern(self, ds_var):
