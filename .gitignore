@@ -4,3 +4,4 @@ notebooks/data/
 EXP2PDF/
 
 src/pyerdf/gui.py
+__pycache__/
