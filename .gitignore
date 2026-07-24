@@ -1,6 +1,6 @@
 # Ignore raw data
 data/
-notebooks/data/
+notebooks/
 EXP2PDF/
 
 src/pyerdf/gui.py

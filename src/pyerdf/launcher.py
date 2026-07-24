@@ -6,7 +6,7 @@ from run_erdf import main as erdf_main
 def main():
     actions = {
         "Azimuthal integration": azim_main,
-        "Calibration": calib_main,
+        "Calibration": lambda: calib_main(root),
         "Run eRDF": erdf_main,
     }
 

@@ -224,7 +224,7 @@ def main(master=None, save=True):
 
     control.load_tif_file()
     img = control.img
-    file_path = control.img_paths[0]
+    file_path = control.img_path
 
     control.img = False
 

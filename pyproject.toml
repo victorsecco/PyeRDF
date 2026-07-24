@@ -9,7 +9,7 @@ dependencies = [
   "tifffile>=2023.8",
   "opencv-python>=4.9",
   "medpy>=0.4.0",
-  "imagecodecs>=2023.1"
+  "imagecodecs>=2023.1",
   "periodictable>=2.1.0",
 ]
 

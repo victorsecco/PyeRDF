@@ -37,61 +37,73 @@ class Controller:
         self.viewer = None
         self.menu_frame = None
 
-    def load_png_file(self):
-        self.img_path = filedialog.askopenfilename(filetypes=[("PNG files", "*.png")])
-        if not self.img_path:
-            raise RuntimeError("No file selected.")
-
-        self.img = self.dl.load_png(self.img_path)
-        
-        if self.viewer:
-            self.viewer.update_img()
-        if self.menu_frame:
-            self.menu_frame.show_img_inputs()
-
-
-    def load_tif_file(self, passing=None, initial_dir = None):
+    def load_image_file(self, passing=None, initial_dir=None):
+        self.img_path = None
         self.img_paths = None
-        self.img_paths = filedialog.askopenfilenames(
-            filetypes=[("TIFF files", "*.tif *.tiff")],
-            initialdir=initial_dir
+        self.num_frames = None
+
+        filetypes = [
+            ("Image files", "*.png *.tif *.tiff *.ser *.dm3 *.dm4"),
+            ("PNG files", "*.png"),
+            ("TIFF files", "*.tif *.tiff"),
+            ("SER files", "*.ser"),
+            ("DM files", "*.dm3 *.dm4"),
+        ]
+
+        paths = filedialog.askopenfilenames(
+            filetypes=filetypes
         )
 
-        if not self.img_paths:
+        if not paths:
             if passing:
-                return  # silently skip
-            else:
-                raise RuntimeError("No TIFF file selected.")
-        
-        self.img = self.dl.load_tif(self.img_paths)
+                return
+            raise RuntimeError("No image file selected.")
+
+        ext = Path(paths[0]).suffix.lower()
+
+        if ext == ".png":
+            if len(paths) > 1:
+                raise RuntimeError("Please select only one PNG file.")
+
+            self.img_path = paths[0]
+            self.img = self.dl.load_png(self.img_path)
+
+        elif ext in [".tif", ".tiff"]:
+            self.img_paths = paths
+            self.img_path = paths[0]
+            self.img = self.dl.load_tif(self.img_paths)
+
+        elif ext == ".ser":
+            if len(paths) > 1:
+                raise RuntimeError("Please select only one SER file.")
+
+            self.img_path = paths[0]
+            self.img, self.num_frames = self.loader.load_ser(self.img_path)
+
+        elif ext in [".dm3", ".dm4"]:
+            if len(paths) > 1:
+                raise RuntimeError("Please select only one DM file.")
+
+            self.img_path = paths[0]
+            self.img = self.dl.load_dm3(self.img_path)
+
+        else:
+            raise RuntimeError(f"Unsupported file extension: {ext}")
 
         if self.viewer:
             self.viewer.update_img()
+
         if self.menu_frame:
             self.menu_frame.show_img_inputs()
 
+    def load_png_file(self):
+        self.load_image_file()
+
+    def load_tif_file(self, passing=None, initial_dir=None):
+        self.load_image_file(passing=passing)
 
     def load_ser_file(self):
-        self.img_path = filedialog.askopenfilename(filetypes=[("SER files", "*.ser")])
-        if not self.img_path:
-            return
-
-        self.img, self.num_frames = self.loader.load_ser(self.img_path)
-        
-        if self.viewer:
-            self.viewer.update_img()
-        if self.menu_frame:
-            self.menu_frame.show_img_inputs()
-        
-        # if self.num_frames > 1:
-        #     self.nav_frame.pack(pady=5)
-        # else:
-        #     self.nav_frame.pack_forget()
-        #     self.current_index = 0
-
-        # self.frame_entry.delete(0, tk.END)
-        # self.frame_entry.insert(0, "0")
-        # self.show_frame(self.current_index)
+        self.load_image_file()
 
     def load_csv_file(self, ds_from_file = False):        
 
@@ -131,4 +143,5 @@ class Controller:
         self.data = np.column_stack((s, self.data))
         if self.viewer:
             self.viewer.update_plot()
+
         

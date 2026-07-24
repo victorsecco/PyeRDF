@@ -292,6 +292,9 @@ def peak_calibration(pixel_positions, standard = 'gold', peaks = None):
     if standard =='gold':  
       peaks = [2.354977, 2.039470, 1.442123, 1.229847, 1.177489, 1.019735, 0.935773, 0.912079]
 
+    elif standard =='crossgrating': 
+        peaks = [2.311, 2.001, 1.415, 1.207, 1.156, 1.001, 0.918, 0.895]
+
     for i in range(len(pixel_positions)):
         dq.append(1/(pixel_positions[i]*peaks[i])*2*math.pi)
         

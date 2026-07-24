@@ -1,5 +1,5 @@
 import tifffile
-# import dm4
+import numpy as np
 from PIL import Image
 
 
@@ -24,20 +24,10 @@ class DataLoader:
     def load_tif(self, file_path):
         return tifffile.imread(file_path)
     
-    def load_dm4(self, file_path):
-        import dm4
-        with dm4.DM4File.open(file_path) as dm4file:
-
-            tags = dm4file.read_directory()
-
-            image_data_tag = tags.named_subdirs['ImageList'].unnamed_subdirs[1].named_subdirs['ImageData']
-            image_tag = image_data_tag.named_tags['Data']
-
-            XDim = dm4file.read_tag_data(image_data_tag.named_subdirs['Dimensions'].unnamed_tags[0])
-            YDim = dm4file.read_tag_data(image_data_tag.named_subdirs['Dimensions'].unnamed_tags[1])
-
-            img = np.array(dm4file.read_tag_data(image_tag), dtype=np.float64)
-            return np.reshape(img, (YDim, XDim))
+    def load_dm3(self, file_path):
+        import dm3_lib as dm3
+        dm = dm3.DM3(file_path)
+        return np.array(dm.imagedata)
         
     def load_images(self, num_images, Binary = 1):
         if not os.path.isdir(self.path):
