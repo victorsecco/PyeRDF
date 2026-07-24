@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt
 from scipy.optimize import minimize
 from pathlib import Path
+import numpy.typing as npt
 
 class DataProcessor:
     def __init__(self, lobato_path = False, it_path = False):
@@ -227,7 +228,16 @@ class DataProcessor:
         self.fq = (numerator * self.s / (self.N * self.f2_mean)) * np.exp(-self.s2 * damping)
 
         return self.sq, self.fq
-    
+
+    def sq_fq_poly(iq: npt.NDArray[np.float64], degree: int = 0) -> npt.NDArray[np.float64]:
+        norm_data = (iq / (self.N * self.f2_mean)) * self.q
+        coefficients = np.polyfit(self.q, norm_data, degree)
+        polynomial = np.poly1d(coefficients)
+        y_fit = polynomial(self.q)
+        fq_poly = norm_data - y_fit
+        sq_poly = fq_poly/q + 1
+        return fq_poly, sq_poly
+        
     def Gr(self, fq, rmax, dr):
         Gr = []
         r = np.arange(0, rmax, dr)

@@ -134,15 +134,11 @@ def main(master=None, ds=None):
     dp.compute_weighted_factors()
     dp.N_and_parameters(region=0.0)
 
-    sq, fq = dp.sq_fq(iq, damping=damping)
+    _, fq = dp.sq_fq(iq, damping=damping)
 
     # CASE SWITCH: direct fq vs polynomial background fit
     if degree > 0:
-        norm_data = (dp.iq / (dp.N * dp.f2_mean)) * dp.q
-        coefficients = np.polyfit(dp.q, norm_data, degree)
-        polynomial = np.poly1d(coefficients)
-        y_fit = polynomial(dp.q)
-        fq_poly = norm_data - y_fit
+        fq_poly, _ = dp.sq_fq_poly
         fq_used = fq_poly
     else:
         fq_used = fq
