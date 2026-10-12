@@ -230,13 +230,13 @@ class DataProcessor:
 
         return self.sq, self.fq
 
-    def sq_fq_poly(iq: npt.NDArray[np.float64], degree: int = 0) -> npt.NDArray[np.float64]:
+    def sq_fq_poly(self, iq: npt.NDArray[np.float64], degree: int = 0) -> npt.NDArray[np.float64]:
         norm_data = (iq / (self.N * self.f2_mean)) * self.q
         coefficients = np.polyfit(self.q, norm_data, degree)
         polynomial = np.poly1d(coefficients)
         y_fit = polynomial(self.q)
         fq_poly = norm_data - y_fit
-        sq_poly = fq_poly/q + 1
+        sq_poly = fq_poly/self.q + 1
         self.sq = sq_poly
         self.fq = fq_poly
         return self.sq, self.fq
