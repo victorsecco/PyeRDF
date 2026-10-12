@@ -200,32 +200,33 @@ class DataProcessor:
 
     def sq_fq(self, iq, damping):
         """
-        Compute reduced structure function S(Q) and total scattering function F(Q) from intensities.
+        Compute S(Q) and the standard reduced scattering function F(Q) from intensities.
 
         Attributes set
         --------------
         self.sq : array
             Structure function S(Q).
         self.fq : array
-            Total scattering function F(Q).
+            Reduced scattering function Q * [S(Q) - 1], with optional damping.
 
         Parameters
         ----------
         iq : array
             Experimental intensity I(Q).
         damping : float
-            Damping factor applied to F(Q) at high Q.
+            Gaussian damping coefficient applied as exp(-self.s2 * damping),
+            where s = Q / (2 * pi). Use zero for undamped Q * [S(Q) - 1].
 
         Returns
         -------
         sq : array
             Structure function S(Q).
         fq : array
-            Total scattering function F(Q).
+            Reduced scattering function Q * [S(Q) - 1], with optional damping.
         """
         numerator = iq - self.autofit
         self.sq = (numerator / (self.N * self.f2_mean)) + 1
-        self.fq = (numerator * self.s / (self.N * self.f2_mean)) * np.exp(-self.s2 * damping)
+        self.fq = self.q * (self.sq - 1) * np.exp(-self.s2 * damping)
 
         return self.sq, self.fq
 
@@ -318,14 +319,14 @@ class DataProcessor:
         Reverse calculation of the total scattering intensity based on the calculated fq
         
         Parameters:
-        - fq: inverse calculated fq after gr corrections
+        - fq: Q-weighted reduced scattering function after gr corrections; Q must be nonzero
         - damping: damping parameter used to make high-q signal less expressive
         
         Returns:
         - iq: recalculated total scattering intensity
         """
-        iq = fq * self.N * self.fq_sq
-        iq = iq / (self.s*np.exp(-self.s2*damping))
+        iq = fq * self.N * self.f2_mean
+        iq = iq / (self.q * np.exp(-self.s2 * damping))
         iq = iq + self.autofit
         return iq
 
