@@ -237,7 +237,9 @@ class DataProcessor:
         y_fit = polynomial(self.q)
         fq_poly = norm_data - y_fit
         sq_poly = fq_poly/q + 1
-        return fq_poly, sq_poly
+        self.sq = sq_poly
+        self.fq = fq_poly
+        return self.sq, self.fq
         
     def Gr(self, fq, rmax, dr):
         Gr = []
